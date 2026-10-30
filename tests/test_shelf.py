@@ -118,3 +118,41 @@ def test_truncated_reply_keeps_complete_entries():
 
 def test_author_read_as_title_is_dropped():
     assert parse_spines('{"books": [{"title": "STEPHEN KING", "author": "Stephen King"}]}') == []
+
+
+def test_location_in_words():
+    from taste.model.shelf import Where, location
+    assert location(Where(0, 5, 0.1)) == "Top shelf, on the left"
+    assert location(Where(1, 5, 0.5)) == "2nd shelf from the top, in the middle"
+    assert location(Where(4, 5, 0.9)) == "Bottom shelf, on the right"
+    assert location(Where(0, 1, 0.5)) == "In the middle"  # one shelf (or none found): side only
+    assert location(None) == ""
+
+
+def test_spines_remember_their_shelf_and_side():
+    def chat(prompt, image, schema, options):
+        if schema is shelf.ROWS_SCHEMA:
+            return json.dumps({"rows": [{"bbox_2d": [0, 100, 1000, 200]}, {"bbox_2d": [0, 500, 1000, 600]}]})
+        return json.dumps({"books": [{"title": "Left", "author": None}, {"title": "Right", "author": None}]})
+
+    spines = shelf.ollama_vision(photo(1200, 1600), chat=chat)
+    top = [s for s in spines if s.where.row == 0]
+    assert {s.where.rows for s in spines} == {2} and top and len(top) < len(spines)
+    assert top[0].where.x < 0.5 < top[-1].where.x  # first read in a row is leftmost
+
+
+def test_scan_persists_in_the_profile(tmp_path):
+    from taste.model import load_ratings, save_ratings
+    from taste.model.shelf import Where, load_scan, save_scan
+    profile = tmp_path / "main.json"
+    assert load_scan(profile) is None
+    save_ratings({"book:1": 1}, profile)
+    spines = [Spine("Dune", "Frank Herbert", Where(1, 3, 0.2)), Spine("Emma")]
+    save_scan(profile, "upload-1", "shelf.jpg", spines, photo(1600, 1200))
+    scan = load_scan(profile)
+    assert scan.id == "upload-1" and scan.photo_name == "shelf.jpg" and scan.scanned
+    assert scan.spines == spines and scan.spines[0].where == Where(1, 3, 0.2) and scan.spines[1].where is None
+    assert scan.image.exists() and max(Image.open(scan.image).size) == 800  # thumbnail, not the full photo
+    assert load_ratings(profile) == {"book:1": 1}  # the rest of the profile is untouched
+    save_scan(profile, "upload-2", "other.jpg", [Spine("Emma")], photo(400, 300))
+    assert load_scan(profile).id == "upload-2"  # replaced, not appended

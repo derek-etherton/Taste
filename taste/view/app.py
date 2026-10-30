@@ -92,7 +92,7 @@ with list_tab:
 
 if shelf:
     with tabs[1]:
-        shelf_scan(item_list("book"))
+        shelf_scan(item_list("book"), path)
 
 with profile_tab:
     describe_me(models, traits, ratings, path)

@@ -13,7 +13,9 @@ import io
 import json
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, field, replace
+from datetime import datetime
+from pathlib import Path
 from typing import Callable
 
 from PIL import Image, ImageOps
@@ -22,6 +24,7 @@ from rapidfuzz import fuzz, process
 from taste.env import load_env
 from taste.model.catalog import Catalog
 from taste.model.llm import LLMError, ollama_chat
+from taste.model.ratings import read_profile, update_profile
 
 VISION_MODEL = "qwen3-vl:8b-instruct"  # override with OLLAMA_VISION_MODEL in .env (not a "thinking" variant)
 MAX_SIDE = 1600  # px; the overview used to find shelf rows is downscaled to this
@@ -64,9 +67,18 @@ SCHEMA = {
 
 
 @dataclass(frozen=True)
+class Where:
+    """Roughly where a spine was read: which shelf row, and how far along it."""
+    row: int  # 0 = top shelf
+    rows: int  # shelf rows found in the photo
+    x: float  # 0 = left edge of the photo, 1 = right edge
+
+
+@dataclass(frozen=True)
 class Spine:
     title: str
     author: str | None = None
+    where: Where | None = field(default=None, compare=False)
 
 
 @dataclass
@@ -136,8 +148,9 @@ def shelf_rows(overview: Image.Image, chat) -> list[tuple[float, float, float, f
 
 
 def pieces(image: Image.Image, row: tuple[float, float, float, float], pad: float = 0.15,
-           overlap: float = 0.08) -> list[Image.Image]:
-    """A row cut into overlapping pieces no wider than PIECE_ASPECT, each scaled to PIECE_HEIGHT."""
+           overlap: float = 0.08) -> list[tuple[Image.Image, float, float]]:
+    """A row cut into overlapping pieces no wider than PIECE_ASPECT, each scaled to PIECE_HEIGHT,
+    with the left and right edge of each as a fraction of the photo's width."""
     w, h = image.size
     x1, y1, x2, y2 = row[0] * w, row[1] * h, row[2] * w, row[3] * h
     grow = (y2 - y1) * pad  # rows are found on a small overview; leave room for tall spines
@@ -153,7 +166,7 @@ def pieces(image: Image.Image, row: tuple[float, float, float, float], pad: floa
         if scale > 1:  # only enlarge; big photos are already sharp enough
             piece = piece.resize((round(piece.width * min(scale, 3)), round(piece.height * min(scale, 3))),
                                  Image.LANCZOS)
-        out.append(piece)
+        out.append((piece, left / w, right / w))
     return out
 
 
@@ -168,20 +181,44 @@ def ollama_vision(image_bytes: bytes, progress: Callable[[int, int], None] | Non
                   chat=_ollama) -> list[Spine]:
     """Read spines with a local vision model: find the shelf rows, then read each row in pieces
     (a whole bookcase at once is too much small text for it). progress(done, total) is called
-    as pieces finish."""
+    as pieces finish. Each spine records roughly where it was: its shelf row, and a position
+    along the row from its order within the piece (the model reads left to right)."""
     image = load_image(image_bytes)
     overview = image.copy()
     overview.thumbnail((MAX_SIDE, MAX_SIDE))
-    rows = shelf_rows(overview, chat) or [(0.0, 0.0, 1.0, 1.0)]
-    todo = [p for row in rows for p in pieces(image, row)]
+    rows = shelf_rows(overview, chat)
+    found = len(rows)
+    todo = [(r, p) for r, row in enumerate(rows or [(0.0, 0.0, 1.0, 1.0)]) for p in pieces(image, row)]
     spines = []
-    for i, piece in enumerate(todo):
+    for i, (r, (piece, left, right)) in enumerate(todo):
         if progress:
             progress(i, len(todo))
-        spines += parse_spines(chat(PROMPT, piece, SCHEMA, READ_OPTIONS))
+        read = parse_spines(chat(PROMPT, piece, SCHEMA, READ_OPTIONS))
+        for j, s in enumerate(read):
+            x = left + (right - left) * (j + 0.5) / len(read)
+            spines.append(replace(s, where=Where(r, found, x)))
     if progress:
         progress(len(todo), len(todo))
     return spines
+
+
+ORDINALS = ["top", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th"]
+
+
+def location(where: Where | None) -> str:
+    """Where to look, in words: "2nd shelf from the top, on the left". Rough by design."""
+    if where is None:
+        return ""
+    side = "on the left" if where.x < 1 / 3 else "in the middle" if where.x < 2 / 3 else "on the right"
+    if where.rows <= 1:
+        return side.capitalize()
+    if where.row == 0:
+        shelf = "Top shelf"
+    elif where.row == where.rows - 1:
+        shelf = "Bottom shelf"
+    else:
+        shelf = f"{ORDINALS[where.row] if where.row < len(ORDINALS) else f'{where.row + 1}th'} shelf from the top"
+    return f"{shelf}, {side}"
 
 
 def read_spines(image_bytes: bytes, reader: Reader = ollama_vision) -> list[Spine]:
@@ -263,3 +300,43 @@ def rank_matches(matches: list[Match], model, quality: float = 0.1):
     """Catalogue rows of the matched books, best for this profile first."""
     rows = list(dict.fromkeys(m.row for m in matches if m.row is not None))
     return model.ranked(quality, rows=rows)
+
+
+@dataclass
+class ShelfScan:
+    """A profile's last shelf scan: the readings (matching and ranking are redone on load, so
+    they follow the catalogue and the profile's current ratings) and a small copy of the photo."""
+    id: str  # identifies the upload it came from
+    photo_name: str
+    scanned: str  # ISO timestamp
+    spines: list[Spine]
+    image: Path  # thumbnail, next to the profile file
+
+
+def _image_path(profile: Path) -> Path:
+    return profile.with_name(f"{profile.stem}.shelf.jpg")
+
+
+def save_scan(profile: Path, scan_id: str, photo_name: str, spines: list[Spine], image_bytes: bytes) -> ShelfScan:
+    """Store a scan as this profile's last one, replacing the previous."""
+    thumb = load_image(image_bytes)
+    thumb.thumbnail((800, 800))
+    image = _image_path(profile)
+    image.parent.mkdir(parents=True, exist_ok=True)
+    thumb.save(image, format="JPEG", quality=85)
+    scan = ShelfScan(scan_id, photo_name, datetime.now().isoformat(timespec="seconds"), spines, image)
+    update_profile(profile, shelf_scan={
+        "id": scan.id, "photo_name": photo_name, "scanned": scan.scanned,
+        "spines": [{"title": s.title, "author": s.author, "where": asdict(s.where) if s.where else None}
+                   for s in spines],
+    })
+    return scan
+
+
+def load_scan(profile: Path) -> ShelfScan | None:
+    raw = read_profile(profile).get("shelf_scan")
+    if not raw:
+        return None
+    spines = [Spine(s["title"], s.get("author"), Where(**s["where"]) if s.get("where") else None)
+              for s in raw["spines"]]
+    return ShelfScan(raw["id"], raw["photo_name"], raw["scanned"], spines, _image_path(profile))

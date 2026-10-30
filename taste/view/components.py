@@ -10,7 +10,8 @@ from taste.model import (Catalog, Explanation, TagClaim, TraitSpace, UserModel, 
                          save_ratings, toggle_rating)
 from taste.model.describe import DescribeError, describe, taste_brief
 from taste.model.llm import LLMError
-from taste.model.shelf import match_spines, ollama_vision, rank_matches, read_spines
+from taste.model.shelf import (load_scan, location, match_spines, ollama_vision, rank_matches, read_spines,
+                               save_scan)
 
 ICON = {1: "👍", 0: "😐", -1: "👎"}
 DOMAIN_ICON = {"film": "🎬", "book": "📚"}
@@ -67,10 +68,12 @@ class ItemList:
     quality: float
     source: str = ""  # where transferred taste comes from, e.g. "films"; "" if none
 
-    def rows(self, rows, key: str, first_rank: int | None = None, more: dict[int, int] | None = None) -> None:
+    def rows(self, rows, key: str, first_rank: int | None = None, more: dict[int, int] | None = None,
+             notes: dict[int, str] | None = None) -> None:
         """One row per item (catalogue row indices), numbered from first_rank if given.
-        `more` maps a row to how many other volumes of its series it stands in for."""
-        more = more or {}
+        `more` maps a row to how many other volumes of its series it stands in for;
+        `notes` maps a row to a short note shown first, e.g. where it is on a shelf."""
+        more, notes = more or {}, notes or {}
         scores = self.model.scores(self.quality)
         personal = len(self.model.rows) or self.model.prior.any()
         for n, i in enumerate(rows):
@@ -79,7 +82,8 @@ class ItemList:
             ex = self.model.explain(i, self.quality, scores=scores)
             name, fit, buttons = st.columns([6, 1.3, 1.8])
             rank = f"{first_rank + n}. " if first_rank is not None else ""
-            details = [self.cat.creator(i), " · ".join(self.cat.genres(i))]
+            details = [f"📍 {notes[i]}"] if notes.get(i) else []
+            details += [self.cat.creator(i), " · ".join(self.cat.genres(i))]
             if i in more:
                 details.append(f"+{more[i]} more in {self.cat.series[i]}")
             if personal:
@@ -139,42 +143,51 @@ def describe_me(models: dict[str, UserModel], traits: TraitSpace | None, ratings
         st.caption(note)
 
 
-def shelf_scan(items: ItemList) -> None:
-    """Photograph a bookshelf: the books on it that we know, best for this profile first."""
+def shelf_scan(items: ItemList, path: Path) -> None:
+    """Photograph a bookshelf: the books on it that we know, best for this profile first.
+    The profile's last scan is saved and shown again until a new photo is scanned."""
     st.caption("Snap or upload a photo of a bookshelf, at home or in a shop. We read the spines and "
                "sort the books we know by how much you'd like them.")
     photo = st.file_uploader("Shelf photo", type=["jpg", "jpeg", "png", "webp"], key="shelf-photo",
                              label_visibility="collapsed")
-    if photo is None:
+    saved = load_scan(path)
+    if photo is None and saved is None:
         return
     # Readings are cached per photo, so switching profile just re-ranks the same shelf.
-    scans = st.session_state.setdefault("shelf_scans", {})
+    readings = st.session_state.setdefault("shelf_readings", {})
     picture, results = st.columns([1, 3])
-    picture.image(photo, use_container_width=True)
     with results:
-        if photo.file_id not in scans:
+        if photo is not None and photo.file_id not in readings:
             bar = st.progress(0.0, text="Finding the shelves…")
 
             def progress(done: int, total: int) -> None:
                 bar.progress(done / total, text=f"Reading the spines: part {min(done + 1, total)} of {total}…")
 
             try:
-                spines = read_spines(photo.getvalue(), lambda image: ollama_vision(image, progress=progress))
+                readings[photo.file_id] = read_spines(photo.getvalue(),
+                                                      lambda image: ollama_vision(image, progress=progress))
             except LLMError as e:
                 bar.empty()
                 st.error(str(e))
                 return
             bar.empty()
-            scans[photo.file_id] = match_spines(spines, items.cat)
-        matches = scans[photo.file_id]
+        if photo is not None and (saved is None or saved.id != photo.file_id):
+            saved = save_scan(path, photo.file_id, photo.name, readings[photo.file_id], photo.getvalue())
+        matches = match_spines(saved.spines, items.cat)
         if not matches:
             st.warning("Couldn't read any titles in this photo. Try a closer, sharper shot of the spines.")
             return
         ranked = rank_matches(matches, items.model, items.quality)
         st.markdown(f"**On this shelf, best for you first** · {len(ranked)} of {len(matches)} "
                     "books recognised")
+        st.caption(f"{saved.photo_name}, scanned {saved.scanned.replace('T', ' at ')}")
         missing = [m.spine for m in matches if m.row is None]
         if missing:
             with st.expander(f"Read but not in our catalogue ({len(missing)})"):
                 st.markdown("\n".join(f"- {s.title}" + (f" · {s.author}" if s.author else "") for s in missing))
-    items.rows(ranked, "shelf", first_rank=1)
+    if photo is not None:
+        picture.image(photo, use_container_width=True)
+    elif saved.image.exists():
+        picture.image(str(saved.image), use_container_width=True)
+    where = {m.row: location(m.spine.where) for m in matches if m.row is not None}
+    items.rows(ranked, "shelf", first_rank=1, notes=where)

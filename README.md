@@ -9,14 +9,14 @@ New to the maths? Start with [docs/how-it-works.md](docs/how-it-works.md), a pla
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e ".[dev]"
-cp .env.example .env                               # then fill in the source URLs
+cp .env.example .env                               # then fill in the source URLs (and Ollama settings, if not the defaults)
 .venv/Scripts/python scripts/prepare_data.py film  # one-off, writes data/film/
 .venv/Scripts/python scripts/prepare_data.py book  # one-off, writes data/book/ and data/traits.json
 .venv/Scripts/streamlit run taste/view/app.py
 .venv/Scripts/python -m pytest                     # tests
 ```
 
-`data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list and your ratings (`data/user.json`).
+`data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and `data/user.json`: your ratings and your latest Describe Me.
 
 ## Using the app
 
@@ -27,24 +27,26 @@ cp .env.example .env                               # then fill in the source URL
   - **Shared traits:** taste that carries across domains.
   - **Films only** and **Books only:** taste each domain adds on top.
 
-  Every claim lists the rated items behind it.
+  Every claim lists the rated items behind it. **Describe Me** asks a local [Ollama](https://ollama.com) model for a fun four-line "taste horoscope" built from your profile. By default it uses `qwen3:8b` at `http://localhost:11434`; set `OLLAMA_MODEL` / `OLLAMA_URL` in `.env` to change that.
 
 ## Layout
 
 ```
 taste/model/      calculations, no UI
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
-  ratings.py      load / save / toggle ratings across domains (data/user.json)
+  ratings.py      data/user.json: ratings across domains, and the saved Describe Me
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
                   ranking, series collapsing, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
+  describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
+taste/env.py      reads .env (source URLs, Ollama settings)
 taste/view/       Streamlit UI, imports taste.model
   app.py          entry point: sidebar, tabs, wiring
   components.py   item rows, rating buttons, score breakdown, profile lists
 scripts/
   prepare_data.py     prepare_data.py <domain>
   sources/            one adapter per source dataset, all writing the common format
-tests/            pytest: films, books, ratings, cross-domain transfer
+tests/            pytest: films, books, ratings, cross-domain transfer, Describe Me (no network)
 docs/             how-it-works.md
 ```
 

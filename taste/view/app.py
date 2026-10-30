@@ -7,7 +7,7 @@ import streamlit as st
 from st_keyup import st_keyup
 
 from taste.model import TRAITS_FILE, Catalog, TraitSpace, UserModel, available_domains, load_ratings
-from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list
+from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list, describe_me
 
 PAGE = 25
 
@@ -78,6 +78,7 @@ with list_tab:
             items.rows(model.rated_order(), f"mine-{domain}")
 
 with profile_tab:
+    describe_me(models, traits, ratings)
     st.caption(EVIDENCE_NOTE)
     names = (["Shared traits"] if traits else []) + [f"{cats[d].name} only" for d in cats]
     sections = st.tabs(names)

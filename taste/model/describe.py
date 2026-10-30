@@ -1,0 +1,122 @@
+"""Describe Me: a playful four-line "taste horoscope", written by an LLM from your profile.
+
+The LLM never sees the maths. taste_brief() turns what the model has inferred (shared
+traits, each domain's own taste, and the items you rated) into a short text brief;
+describe() asks a local Ollama model to write it up. Keeping the brief separate makes it
+testable and lets you see exactly what the LLM was told.
+"""
+
+import json
+import os
+import re
+import urllib.error
+import urllib.request
+from typing import Callable
+
+from taste.env import load_env
+from taste.model.traits import TraitSpace
+from taste.model.user_model import TagClaim, UserModel
+
+OLLAMA_URL = "http://localhost:11434"  # override with OLLAMA_URL in .env
+OLLAMA_MODEL = "qwen3:8b"  # override with OLLAMA_MODEL in .env
+
+SYSTEM = """Below is what a recommender has worked out about someone's taste in films and \
+books. Turn it into a taste horoscope: a fun, cheeky reading they'd screenshot and send to \
+friends. Be playful, a little mystical and over the top, but true to them underneath.
+
+Write four short sentences, each under 18 words:
+1. "You're a" plus an inventive archetype that's half flattering, half teasing (e.g. a feral \
+romantic, an apocalypse tourist, a chaos gremlin, a goth with a library card, a snob with a \
+soft spot). Make it specific to them; never a plain genre label like "sci-fi fan".
+2. Their loves, told with flair: name one or two of their actual titles.
+3. An omen about what they can't stand ("Beware...", "The stars forbid...").
+4. A prophecy about what's coming for them next, linking their films and books.
+
+Rules:
+- Exaggerate for fun, but every claim must come from the information given.
+- Everyday words with personality, not critic-speak. Never use: gravitate, drawn to, \
+resonate, explore, nuanced, cerebral, tapestry, undercurrents, narratives, complex, journey.
+- Teasing is fine; cruel or crude is not.
+- No em dashes or en dashes. Use commas, colons or full stops instead.
+- Never mention ratings, tags, traits, profiles or the recommender. Some trait names are \
+noise: ignore any that don't fit the titles.
+- Reply with the reading only.
+
+Example of the tone, for a different person (match the tone, never reuse its words or images): \
+You're a feral romantic with a getaway car idling outside. Heist films are your cardio, \
+and Pride and Prejudice is your secret scripture. The stars forbid slapstick: one pratfall \
+and you're gone. This season, a charming liar will steal your evenings, on screen and on \
+the page."""
+
+Chat = Callable[[list[dict]], str]  # messages -> reply text
+
+
+class DescribeError(Exception):
+    """Something the user should see, e.g. Ollama not running or the model missing."""
+
+
+def _claims(title: str, pos: list[TagClaim], neg: list[TagClaim], k: int) -> list[str]:
+    def line(c: TagClaim) -> str:
+        ev = ", ".join(e.item for e in c.supporting[:2])
+        return f"- {c.tag}" + (f" (e.g. {ev})" if ev else "")
+
+    out = [f"{title}:"]
+    if pos:
+        out += ["  Drawn to:"] + ["  " + line(c) for c in pos[:k]]
+    if neg:
+        out += ["  Steers away from:"] + ["  " + line(c) for c in neg[:k]]
+    return out if len(out) > 1 else []
+
+
+def taste_brief(models: dict[str, UserModel], traits: TraitSpace | None, ratings: dict[str, int],
+                k: int = 8, titles: int = 15) -> str:
+    """What the model has inferred about you, as text for the LLM."""
+    lines = []
+    for m in models.values():
+        name = m.cat.name.lower()
+        lines.append(f"{m.cat.name}: {m.confidence()}.")
+        for label, value in [("Liked", 1), ("Meh", 0), ("Disliked", -1)]:
+            rows = [int(i) for i, y in zip(m.rows, m.y) if y == value]
+            if rows:
+                shown = "; ".join(m.cat.label(i) for i in rows[:titles])
+                more = f" (and {len(rows) - titles} more)" if len(rows) > titles else ""
+                lines.append(f"  {label} {name}: {shown}{more}")
+    if traits:
+        lines += [""] + _claims("Taste that carries across films and books", *traits.profile(ratings, k=k), k)
+    for m in models.values():
+        own = _claims(f"Taste specific to {m.cat.name.lower()}", *m.profile(k=k), k)
+        lines += [""] + own if own else []
+    return "\n".join(lines).strip()
+
+
+def ollama_chat(messages: list[dict]) -> str:
+    """One non-streaming chat turn against the local Ollama server."""
+    load_env()
+    url = os.environ.get("OLLAMA_URL", OLLAMA_URL).rstrip("/")
+    model = os.environ.get("OLLAMA_MODEL", OLLAMA_MODEL)
+    # think=False: reasoning models (e.g. qwen3) answer directly instead of thinking first.
+    # A higher temperature keeps the readings playful and different on each press.
+    body = json.dumps({"model": model, "messages": messages, "stream": False, "think": False,
+                       "options": {"temperature": 1.0}}).encode()
+    request = urllib.request.Request(f"{url}/api/chat", data=body, headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            return json.loads(response.read())["message"]["content"]
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode(errors="replace")
+        if e.code == 404:
+            raise DescribeError(f"Ollama doesn't have {model}; run `ollama pull {model}`.") from None
+        raise DescribeError(f"Ollama returned an error ({e.code}): {detail}") from None
+    except (urllib.error.URLError, TimeoutError, ConnectionError):
+        raise DescribeError(f"Couldn't reach Ollama at {url}; is it running?") from None
+
+
+def describe(brief: str, chat: Chat = ollama_chat) -> str:
+    """Three sentences about the person behind `brief`. Raises DescribeError on failure."""
+    reply = chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": brief}])
+    # Some models still emit their reasoning inline; keep only the answer.
+    text = re.sub(r"<think>.*?</think>", "", reply, flags=re.DOTALL).strip()
+    text = re.sub(r"\s*[—–]\s*", ", ", text)  # in case a dash slips past the prompt
+    if not text:
+        raise DescribeError("The model returned no text.")
+    return text

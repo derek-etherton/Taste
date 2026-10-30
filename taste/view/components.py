@@ -5,7 +5,9 @@ from dataclasses import dataclass
 import pandas as pd
 import streamlit as st
 
-from taste.model import Catalog, Explanation, TagClaim, UserModel, save_ratings, toggle_rating
+from taste.model import (Catalog, Explanation, TagClaim, TraitSpace, UserModel, load_description, save_description,
+                         save_ratings, toggle_rating)
+from taste.model.describe import DescribeError, describe, taste_brief
 
 ICON = {1: "👍", 0: "😐", -1: "👎"}
 DOMAIN_ICON = {"film": "🎬", "book": "📚"}
@@ -112,3 +114,21 @@ def claim_list(pos: list[TagClaim], neg: list[TagClaim], empty: str) -> None:
 
 EVIDENCE_NOTE = ("Evidence lists only items that clearly have the trait. **for**: rated the way the "
                  "trait points. **against**: rated the other way, or meh.")
+
+
+def describe_me(models: dict[str, UserModel], traits: TraitSpace | None, ratings: dict[str, int]) -> None:
+    """The Describe Me button, and your saved description (kept until a new one is written)."""
+    if st.button("Describe Me", disabled=not ratings,
+                 help="A fun four-line taste horoscope, written by a local AI model. Press again for a new one."):
+        with st.spinner("Writing your description…"):
+            try:
+                save_description(describe(taste_brief(models, traits, ratings)), ratings)
+            except DescribeError as e:
+                st.error(str(e))  # a failed attempt keeps the previous description
+    saved = load_description()
+    if saved:
+        st.info(saved.text)
+        note = f"Written {saved.created.replace('T', ' at ')}"
+        if saved.ratings != ratings:
+            note += ". Your ratings have changed since; press Describe Me for a fresh one."
+        st.caption(note)

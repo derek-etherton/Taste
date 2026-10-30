@@ -1,10 +1,8 @@
-"""Helpers shared by the source adapters: .env, download, quality, and the common output format."""
+"""Helpers shared by the source adapters: download, quality, and the common output format."""
 
 import json
-import os
 import urllib.request
 import zipfile
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -18,15 +16,6 @@ RAW = DATA / "raw"
 SHRINK = 50  # pseudo-ratings pulling an item's mean toward the global mean
 COLUMNS = ["id", "title", "year", "creator", "genres", "series", "series_index",
            "n_ratings", "mean_rating", "quality"]
-
-
-def load_env(path: Path = DATA.parent / ".env") -> None:
-    """Minimal .env reader: KEY=value lines; real environment variables win."""
-    if path.exists():
-        for line in path.read_text().splitlines():
-            key, sep, value = line.partition("=")
-            if sep and not key.strip().startswith("#"):
-                os.environ.setdefault(key.strip(), value.strip())
 
 
 class Source:

@@ -12,7 +12,9 @@ import os
 import shutil
 
 from sources import books, films
-from sources.common import RAW, Source, load_env
+from sources.common import RAW, Source
+
+from taste.env import load_env
 
 ADAPTERS = {"film": films, "book": books}
 

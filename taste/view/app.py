@@ -1,4 +1,4 @@
-"""Streamlit PoC: rate films, get recommendations, inspect your profile.
+"""Streamlit prototype: rate films and books, get recommendations, inspect your profile.
 
 Run: streamlit run taste/view/app.py
 """
@@ -6,65 +6,88 @@ Run: streamlit run taste/view/app.py
 import streamlit as st
 from st_keyup import st_keyup
 
-from taste.model import Catalog, UserModel, load_ratings, save_ratings
-from taste.view.components import FilmList, profile_panel
+from taste.model import TRAITS_FILE, Catalog, TraitSpace, UserModel, available_domains, load_ratings
+from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list
 
 PAGE = 25
 
-st.set_page_config(page_title="Taste", page_icon="🎞️", layout="wide")
+st.set_page_config(page_title="Taste", page_icon="🎬", layout="wide")
 
 
 @st.cache_resource
-def catalog() -> Catalog:
-    return Catalog()
+def catalogs() -> dict[str, Catalog]:
+    return {d: Catalog(d) for d in available_domains()}
 
 
-cat = catalog()
+@st.cache_resource
+def trait_space() -> TraitSpace | None:
+    return TraitSpace(catalogs()) if TRAITS_FILE.exists() and len(catalogs()) > 1 else None
+
+
+cats, traits = catalogs(), trait_space()
 if "ratings" not in st.session_state:
     st.session_state.ratings = load_ratings()
-ratings: dict[int, int] = st.session_state.ratings
+ratings: dict[str, int] = st.session_state.ratings
 
 with st.sidebar:
-    st.title("🎞️ Taste")
+    st.title("Taste")
+    domain = st.segmented_control(
+        "Domain", list(cats), default=list(cats)[0], key="domain", label_visibility="collapsed",
+        format_func=lambda d: f"{DOMAIN_ICON.get(d, '')} {cats[d].name}") or list(cats)[0]
     quality = st.slider("Weight on general quality", 0.0, 1.0, 0.1, 0.05,
-                        help="0 = pure taste match. Higher = lean toward films everyone rates well.")
-    min_ratings = st.select_slider("Hide films with fewer ratings than", [0, 100, 500, 1000, 5000, 20000], 500)
-    model = UserModel(cat, ratings)
-    st.caption(model.confidence())
-    if ratings and st.button("Reset all ratings"):
-        ratings.clear()
-        save_ratings(ratings)
-        st.rerun()
+                        help="0 = pure taste match. Higher = lean toward items everyone rates well.")
+    models = {d: UserModel(c, ratings, prior=traits.prior(d, ratings) if traits else None)
+              for d, c in cats.items()}
+    for d, m in models.items():
+        st.caption(f"{DOMAIN_ICON.get(d, '')} {m.confidence()}")
 
-films = FilmList(cat, model, ratings, quality, min_ratings)
-films_tab, profile_tab = st.tabs(["Films", "Profile"])
+cat, model = cats[domain], models[domain]
+others = [cats[d].name.lower() for d in (traits.rated_domains(ratings) if traits else []) if d != domain]
+items = ItemList(cat, model, ratings, quality, source=" & ".join(others))
+list_tab, profile_tab = st.tabs([cat.name, "Profile"])
 
-with films_tab:
-    mode = st.segmented_control("List", ["For you", "Rate films"], default="For you",
-                                key="mode", label_visibility="collapsed") or "For you"
-    query = st_keyup("Search films", placeholder="Start typing a title…", debounce=200, key="q").strip()
-    # Search covers the whole catalogue, rated films included, in the current mode's order.
+with list_tab:
+    mode = st.segmented_control("List", ["For you", f"Rate {cat.name.lower()}"], default="For you",
+                                key=f"mode-{domain}", label_visibility="collapsed") or "For you"
+    query = st_keyup(f"Search {cat.name.lower()}", placeholder="Start typing a title or name…",
+                     debounce=200, key=f"q-{domain}").strip()
+    # Search covers the whole catalogue, rated items included, in the current mode's order.
     hits = cat.search(query) if query else None
     if mode == "For you":
-        pool = model.ranked(quality, min_ratings, rows=hits)
-        if not query and not ratings:
-            st.info("Rate a few films. Until then this is just the best-rated films overall.")
+        pool = model.ranked(quality, rows=hits)
+        if not query and not len(model.rows) and not items.source:
+            st.info(f"Rate a few {cat.name.lower()}. Until then this is just the best-rated overall.")
     else:
         pool = model.teaching_order(rows=hits)
         if not query:
-            st.caption("Well-known films your profile knows least about, spread across different "
-                       "kinds of film. Rating these teaches it the most.")
+            st.caption(f"Well-known {cat.name.lower()} your profile knows least about, spread across "
+                       "different kinds. Rating these teaches it the most.")
+    # One entry per series: the next volume you haven't rated, ranked by the series' best match.
+    pool, more = model.collapse_series(pool)
     if len(pool) == 0:
         st.info("No matches.")
     pages = max(1, -(-len(pool) // PAGE))
-    # Keyed on mode and query so the page resets whenever either changes.
-    page = st.number_input(f"Page (of {pages})", 1, pages, 1, key=f"page-{mode}-{query}") if pages > 1 else 1
+    # Keyed on domain, mode and query so the page resets whenever any of them changes.
+    page = (st.number_input(f"Page (of {pages})", 1, pages, 1, key=f"page-{domain}-{mode}-{query}")
+            if pages > 1 else 1)
     start = (page - 1) * PAGE
-    films.rows(pool[start: start + PAGE], "film", first_rank=None if query else start + 1)
+    items.rows(pool[start: start + PAGE], domain, first_rank=None if query else start + 1, more=more)
 
-    if ratings:
-        with st.expander(f"Your ratings ({len(ratings)})"):
-            films.rows(model.rated_order(), "mine")
+    if len(model.rows):
+        with st.expander(f"Your ratings ({len(model.rows)})"):
+            items.rows(model.rated_order(), f"mine-{domain}")
 
 with profile_tab:
-    profile_panel(model)
+    st.caption(EVIDENCE_NOTE)
+    names = (["Shared traits"] if traits else []) + [f"{cats[d].name} only" for d in cats]
+    sections = st.tabs(names)
+    if traits:
+        with sections[0]:
+            st.caption(f"Traits that mean the same across {' and '.join(c.name.lower() for c in cats.values())}, "
+                       "fit on all your ratings. This is what carries over between domains.")
+            claim_list(*traits.profile(ratings), "No ratings yet.")
+    for section, (d, m) in zip(sections[1 if traits else 0:], models.items()):
+        with section:
+            st.caption(m.confidence() + (". Taste learnt from these ratings alone, on top of what "
+                                         "carried over from other domains." if traits else ""))
+            claim_list(*m.profile(), f"No {cats[d].name.lower()} rated yet.")

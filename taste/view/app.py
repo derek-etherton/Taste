@@ -6,7 +6,8 @@ Run: streamlit run taste/view/app.py
 import streamlit as st
 from st_keyup import st_keyup
 
-from taste.model import TRAITS_FILE, Catalog, TraitSpace, UserModel, available_domains, load_ratings
+from taste.model import (TRAITS_FILE, Catalog, TraitSpace, UserModel, available_domains, list_users, load_ratings,
+                         user_file)
 from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list, describe_me
 
 PAGE = 25
@@ -25,12 +26,17 @@ def trait_space() -> TraitSpace | None:
 
 
 cats, traits = catalogs(), trait_space()
-if "ratings" not in st.session_state:
-    st.session_state.ratings = load_ratings()
-ratings: dict[str, int] = st.session_state.ratings
 
 with st.sidebar:
     st.title("Taste")
+    user = st.selectbox("Profile", list_users(), key="user",
+                        help="Each profile has its own ratings and description, in data/users/<name>.json.")
+    path = user_file(user)
+    # Ratings live in session state per profile, so switching back keeps edits made this session.
+    profiles = st.session_state.setdefault("profiles", {})
+    if user not in profiles:
+        profiles[user] = load_ratings(path)
+    ratings: dict[str, int] = profiles[user]
     domain = st.segmented_control(
         "Domain", list(cats), default=list(cats)[0], key="domain", label_visibility="collapsed",
         format_func=lambda d: f"{DOMAIN_ICON.get(d, '')} {cats[d].name}") or list(cats)[0]
@@ -43,7 +49,7 @@ with st.sidebar:
 
 cat, model = cats[domain], models[domain]
 others = [cats[d].name.lower() for d in (traits.rated_domains(ratings) if traits else []) if d != domain]
-items = ItemList(cat, model, ratings, quality, source=" & ".join(others))
+items = ItemList(cat, model, ratings, path, quality, source=" & ".join(others))
 list_tab, profile_tab = st.tabs([cat.name, "Profile"])
 
 with list_tab:
@@ -68,7 +74,7 @@ with list_tab:
         st.info("No matches.")
     pages = max(1, -(-len(pool) // PAGE))
     # Keyed on domain, mode and query so the page resets whenever any of them changes.
-    page = (st.number_input(f"Page (of {pages})", 1, pages, 1, key=f"page-{domain}-{mode}-{query}")
+    page = (st.number_input(f"Page (of {pages})", 1, pages, 1, key=f"page-{user}-{domain}-{mode}-{query}")
             if pages > 1 else 1)
     start = (page - 1) * PAGE
     items.rows(pool[start: start + PAGE], domain, first_rank=None if query else start + 1, more=more)
@@ -78,7 +84,7 @@ with list_tab:
             items.rows(model.rated_order(), f"mine-{domain}")
 
 with profile_tab:
-    describe_me(models, traits, ratings)
+    describe_me(models, traits, ratings, path)
     st.caption(EVIDENCE_NOTE)
     names = (["Shared traits"] if traits else []) + [f"{cats[d].name} only" for d in cats]
     sections = st.tabs(names)

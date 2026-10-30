@@ -1,6 +1,7 @@
 """Reusable Streamlit pieces: item rows, rating buttons, score breakdown, profile."""
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -24,16 +25,16 @@ def fmt_tags(tags: list[tuple[str, float]], transferred: set[str] = frozenset(),
     return ", ".join(f"{t} <i>(from {source})</i>" if t in transferred else t for t, _ in tags) or "—"
 
 
-def _rate(ratings: dict[str, int], key: str, value: int) -> None:
+def _rate(ratings: dict[str, int], key: str, value: int, path: Path) -> None:
     toggle_rating(ratings, key, value)
-    save_ratings(ratings)
+    save_ratings(ratings, path)
 
 
-def rating_buttons(ratings: dict[str, int], key: str, widget_key: str) -> None:
+def rating_buttons(ratings: dict[str, int], key: str, widget_key: str, path: Path) -> None:
     current = ratings.get(key)
     for col, (value, name) in zip(st.columns(3), BUTTONS):
         col.button(ICON[value], key=f"{widget_key}-{name}", type="primary" if current == value else "secondary",
-                   on_click=_rate, args=(ratings, key, value), use_container_width=True,
+                   on_click=_rate, args=(ratings, key, value, path), use_container_width=True,
                    help="Meh: tried it, neither loved nor hated it" if value == 0 else None)
 
 
@@ -60,6 +61,7 @@ class ItemList:
     cat: Catalog
     model: UserModel
     ratings: dict[str, int]
+    path: Path  # the profile file ratings are saved to
     quality: float
     source: str = ""  # where transferred taste comes from, e.g. "films"; "" if none
 
@@ -89,7 +91,7 @@ class ItemList:
                              help="How recommended this is for you. Click for why."):
                 score_breakdown(ex, self.source)
             with buttons:
-                rating_buttons(self.ratings, item, f"{key}-{item}")
+                rating_buttons(self.ratings, item, f"{key}-{item}", self.path)
 
 
 def claim_list(pos: list[TagClaim], neg: list[TagClaim], empty: str) -> None:
@@ -116,16 +118,17 @@ EVIDENCE_NOTE = ("Evidence lists only items that clearly have the trait. **for**
                  "trait points. **against**: rated the other way, or meh.")
 
 
-def describe_me(models: dict[str, UserModel], traits: TraitSpace | None, ratings: dict[str, int]) -> None:
+def describe_me(models: dict[str, UserModel], traits: TraitSpace | None, ratings: dict[str, int],
+                path: Path) -> None:
     """The Describe Me button, and your saved description (kept until a new one is written)."""
     if st.button("Describe Me", disabled=not ratings,
                  help="A fun four-line taste horoscope, written by a local AI model. Press again for a new one."):
         with st.spinner("Writing your description…"):
             try:
-                save_description(describe(taste_brief(models, traits, ratings)), ratings)
+                save_description(describe(taste_brief(models, traits, ratings)), ratings, path)
             except DescribeError as e:
                 st.error(str(e))  # a failed attempt keeps the previous description
-    saved = load_description()
+    saved = load_description(path)
     if saved:
         st.info(saved.text)
         note = f"Written {saved.created.replace('T', ' at ')}"

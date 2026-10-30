@@ -26,27 +26,26 @@ friends. Be playful, a little mystical and over the top, but true to them undern
 
 Write four short sentences, each under 18 words:
 1. "You're a" plus an inventive archetype that's half flattering, half teasing (e.g. a feral \
-romantic, an apocalypse tourist, a chaos gremlin, a goth with a library card, a snob with a \
-soft spot). Make it specific to them; never a plain genre label like "sci-fi fan".
-2. Their loves, told with flair: name one or two of their actual titles.
-3. An omen about what they can't stand ("Beware...", "The stars forbid...").
+romantic, an apocalypse tourist, a chaos gremlin, a goth with a library card). Make it \
+specific to them; never a plain genre label like "sci-fi fan".
+2. What they love, as a vivid picture of the kind of story or moment that gets them, not a list.
+3. An omen about what they can't stand.
 4. A prophecy about what's coming for them next, linking their films and books.
 
 Rules:
+- Never name a film, book, author or director. The titles below are only there so you can \
+read their taste.
 - Exaggerate for fun, but every claim must come from the information given.
-- Everyday words with personality, not critic-speak. Never use: gravitate, drawn to, \
-resonate, explore, nuanced, cerebral, tapestry, undercurrents, narratives, complex, journey.
+- Everyday words with personality, not critic-speak. Each sentence should surprise; avoid \
+stock horoscope phrases. Never use: gravitate, drawn to, resonate, explore, nuanced, \
+cerebral, tapestry, undercurrents, narratives, complex, journey, sacred, holy, scripture, \
+texts, soul, your nose, the stars, soft spot, swept away.
 - Teasing is fine; cruel or crude is not.
 - No em dashes or en dashes. Use commas, colons or full stops instead.
 - Never mention ratings, tags, traits, profiles or the recommender. Some trait names are \
 noise: ignore any that don't fit the titles.
-- Reply with the reading only.
-
-Example of the tone, for a different person (match the tone, never reuse its words or images): \
-You're a feral romantic with a getaway car idling outside. Heist films are your cardio, \
-and Pride and Prejudice is your secret scripture. The stars forbid slapstick: one pratfall \
-and you're gone. This season, a charming liar will steal your evenings, on screen and on \
-the page."""
+- Reply with the reading only."""
+# No example reading: the model copied any example's structure line for line.
 
 Chat = Callable[[list[dict]], str]  # messages -> reply text
 

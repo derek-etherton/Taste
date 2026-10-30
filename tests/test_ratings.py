@@ -34,3 +34,11 @@ def test_description_persists_alongside_ratings(tmp_path):
     save_description("You're a goth with a library card.", load_ratings(path), path)
     assert load_description(path).text == "You're a goth with a library card."  # replaced, not appended
     assert load_ratings(path) == {"film:1": 1, "book:2": -1}
+
+
+def test_list_users_puts_main_first(tmp_path):
+    from taste.model import list_users, user_file
+    assert list_users(tmp_path) == ["main"]  # always offered, created on first save
+    for name in ["romantic", "normie", "main"]:
+        save_ratings({}, user_file(name, tmp_path))
+    assert list_users(tmp_path) == ["main", "normie", "romantic"]

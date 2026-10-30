@@ -12,15 +12,16 @@ python -m venv .venv
 cp .env.example .env                               # then fill in the source URLs (and Ollama settings, if not the defaults)
 .venv/Scripts/python scripts/prepare_data.py film  # one-off, writes data/film/
 .venv/Scripts/python scripts/prepare_data.py book  # one-off, writes data/book/ and data/traits.json
+.venv/Scripts/python scripts/seed_profiles.py      # optional: normie and romantic test profiles
 .venv/Scripts/streamlit run taste/view/app.py
 .venv/Scripts/python -m pytest                     # tests
 ```
 
-`data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and `data/user.json`: your ratings and your latest Describe Me.
+`data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and the profiles in `data/users/<name>.json`, each with its ratings and latest Describe Me.
 
 ## Using the app
 
-- **Sidebar.** Pick Films or Books. **Weight on general quality** sets how much widely-liked items get a boost.
+- **Sidebar.** Pick a **Profile** (`main` is yours; others are for testing), then Films or Books. **Weight on general quality** sets how much widely-liked items get a boost.
 - **For you.** Unrated items ranked by how well they match you. The percentile button opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
 - **Rate films / Rate books.** Every unrated item. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
 - **Profile.** Three views:
@@ -34,7 +35,7 @@ cp .env.example .env                               # then fill in the source URL
 ```
 taste/model/      calculations, no UI
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
-  ratings.py      data/user.json: ratings across domains, and the saved Describe Me
+  ratings.py      profiles in data/users/: ratings across domains, and the saved Describe Me
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
                   ranking, series collapsing, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
@@ -45,6 +46,7 @@ taste/view/       Streamlit UI, imports taste.model
   components.py   item rows, rating buttons, score breakdown, profile lists
 scripts/
   prepare_data.py     prepare_data.py <domain>
+  seed_profiles.py    test profiles (normie, romantic) built from lists of titles
   sources/            one adapter per source dataset, all writing the common format
 tests/            pytest: films, books, ratings, cross-domain transfer, Describe Me (no network)
 docs/             how-it-works.md

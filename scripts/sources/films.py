@@ -13,7 +13,12 @@ def split_title(title: str) -> tuple[str, int | None]:
     m = re.match(r"^(.*?)\s*\((\d{4})\)\s*$", title)
     title, year = (m.group(1), int(m.group(2))) if m else (title, None)
     # Source titles read "Exorcist, The"; put the article back in front.
-    return re.sub(r"^(.*), (The|A|An)$", r"\2 \1", title), year
+    return fix_article(title), year
+
+
+def fix_article(title: str) -> str:
+    """"Seventh Seal, The (Sjunde inseglet, Det)" -> "The Seventh Seal (Sjunde inseglet, Det)"."""
+    return re.sub(r"^(.*?), (The|A|An)( \(.*\))?$", r"\2 \1\3", title)
 
 
 def build(src: Source) -> None:

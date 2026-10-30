@@ -23,6 +23,7 @@ cp .env.example .env                               # then fill in the source URL
 
 - **Sidebar.** Pick a **Profile** (`main` is yours; others are for testing), then Films or Books. **Weight on general quality** sets how much widely-liked items get a boost.
 - **For you.** Unrated items ranked by how well they match you. The percentile button opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop (on a phone, the upload button offers the camera). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
 - **Rate films / Rate books.** Every unrated item. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
 - **Profile.** Three views:
   - **Shared traits:** taste that carries across domains.
@@ -40,6 +41,8 @@ taste/model/      calculations, no UI
                   ranking, series collapsing, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
   describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
+  shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
+  llm.py          the local Ollama client both of those use
 taste/env.py      reads .env (source URLs, Ollama settings)
 taste/view/       Streamlit UI, imports taste.model
   app.py          entry point: sidebar, tabs, wiring

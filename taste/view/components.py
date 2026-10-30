@@ -9,6 +9,8 @@ import streamlit as st
 from taste.model import (Catalog, Explanation, TagClaim, TraitSpace, UserModel, load_description, save_description,
                          save_ratings, toggle_rating)
 from taste.model.describe import DescribeError, describe, taste_brief
+from taste.model.llm import LLMError
+from taste.model.shelf import match_spines, ollama_vision, rank_matches, read_spines
 
 ICON = {1: "👍", 0: "😐", -1: "👎"}
 DOMAIN_ICON = {"film": "🎬", "book": "📚"}
@@ -135,3 +137,44 @@ def describe_me(models: dict[str, UserModel], traits: TraitSpace | None, ratings
         if saved.ratings != ratings:
             note += ". Your ratings have changed since; press Describe Me for a fresh one."
         st.caption(note)
+
+
+def shelf_scan(items: ItemList) -> None:
+    """Photograph a bookshelf: the books on it that we know, best for this profile first."""
+    st.caption("Snap or upload a photo of a bookshelf, at home or in a shop. We read the spines and "
+               "sort the books we know by how much you'd like them.")
+    photo = st.file_uploader("Shelf photo", type=["jpg", "jpeg", "png", "webp"], key="shelf-photo",
+                             label_visibility="collapsed")
+    if photo is None:
+        return
+    # Readings are cached per photo, so switching profile just re-ranks the same shelf.
+    scans = st.session_state.setdefault("shelf_scans", {})
+    picture, results = st.columns([1, 3])
+    picture.image(photo, use_container_width=True)
+    with results:
+        if photo.file_id not in scans:
+            bar = st.progress(0.0, text="Finding the shelves…")
+
+            def progress(done: int, total: int) -> None:
+                bar.progress(done / total, text=f"Reading the spines: part {min(done + 1, total)} of {total}…")
+
+            try:
+                spines = read_spines(photo.getvalue(), lambda image: ollama_vision(image, progress=progress))
+            except LLMError as e:
+                bar.empty()
+                st.error(str(e))
+                return
+            bar.empty()
+            scans[photo.file_id] = match_spines(spines, items.cat)
+        matches = scans[photo.file_id]
+        if not matches:
+            st.warning("Couldn't read any titles in this photo. Try a closer, sharper shot of the spines.")
+            return
+        ranked = rank_matches(matches, items.model, items.quality)
+        st.markdown(f"**On this shelf, best for you first** · {len(ranked)} of {len(matches)} "
+                    "books recognised")
+        missing = [m.spine for m in matches if m.row is None]
+        if missing:
+            with st.expander(f"Read but not in our catalogue ({len(missing)})"):
+                st.markdown("\n".join(f"- {s.title}" + (f" · {s.author}" if s.author else "") for s in missing))
+    items.rows(ranked, "shelf", first_rank=1)

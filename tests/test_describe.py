@@ -4,7 +4,8 @@ import pytest
 
 from conftest import find
 from taste.model import UserModel
-from taste.model.describe import DescribeError, describe, ollama_chat, taste_brief
+from taste.model.describe import DescribeError, describe, taste_brief
+from taste.model.llm import ollama_chat
 
 
 @pytest.fixture(scope="module")
@@ -45,7 +46,7 @@ def test_inline_reasoning_is_stripped(brief):
 def test_unreachable_server_is_a_clear_error(monkeypatch):
     monkeypatch.setenv("OLLAMA_URL", "http://127.0.0.1:9")  # nothing listens on the discard port
     with pytest.raises(DescribeError, match="Couldn't reach Ollama"):
-        ollama_chat([{"role": "user", "content": "hi"}])
+        ollama_chat([{"role": "user", "content": "hi"}], "any-model")
 
 
 def test_dashes_become_commas(brief):

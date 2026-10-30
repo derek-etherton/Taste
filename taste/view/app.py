@@ -8,7 +8,7 @@ from st_keyup import st_keyup
 
 from taste.model import (TRAITS_FILE, Catalog, TraitSpace, UserModel, available_domains, list_users, load_ratings,
                          user_file)
-from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list, describe_me
+from taste.view.components import DOMAIN_ICON, EVIDENCE_NOTE, ItemList, claim_list, describe_me, shelf_scan
 
 PAGE = 25
 
@@ -47,10 +47,17 @@ with st.sidebar:
     for d, m in models.items():
         st.caption(f"{DOMAIN_ICON.get(d, '')} {m.confidence()}")
 
-cat, model = cats[domain], models[domain]
-others = [cats[d].name.lower() for d in (traits.rated_domains(ratings) if traits else []) if d != domain]
-items = ItemList(cat, model, ratings, path, quality, source=" & ".join(others))
-list_tab, profile_tab = st.tabs([cat.name, "Profile"])
+
+
+def item_list(d: str) -> ItemList:
+    others = [cats[o].name.lower() for o in (traits.rated_domains(ratings) if traits else []) if o != d]
+    return ItemList(cats[d], models[d], ratings, path, quality, source=" & ".join(others))
+
+
+cat, model, items = cats[domain], models[domain], item_list(domain)
+shelf = "book" in cats  # Shelf scan reads book spines, whichever domain is selected
+tabs = st.tabs([cat.name] + (["Shelf scan"] if shelf else []) + ["Profile"])
+list_tab, profile_tab = tabs[0], tabs[-1]
 
 with list_tab:
     mode = st.segmented_control("List", ["For you", f"Rate {cat.name.lower()}"], default="For you",
@@ -82,6 +89,10 @@ with list_tab:
     if len(model.rows):
         with st.expander(f"Your ratings ({len(model.rows)})"):
             items.rows(model.rated_order(), f"mine-{domain}")
+
+if shelf:
+    with tabs[1]:
+        shelf_scan(item_list("book"))
 
 with profile_tab:
     describe_me(models, traits, ratings, path)

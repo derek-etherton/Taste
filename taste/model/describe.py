@@ -6,19 +6,17 @@ describe() asks a local Ollama model to write it up. Keeping the brief separate 
 testable and lets you see exactly what the LLM was told.
 """
 
-import json
 import os
 import re
-import urllib.error
-import urllib.request
 from typing import Callable
 
 from taste.env import load_env
+from taste.model.llm import LLMError, ollama_chat
 from taste.model.traits import TraitSpace
 from taste.model.user_model import TagClaim, UserModel
 
-OLLAMA_URL = "http://localhost:11434"  # override with OLLAMA_URL in .env
 OLLAMA_MODEL = "qwen3:8b"  # override with OLLAMA_MODEL in .env
+DescribeError = LLMError
 
 SYSTEM = """Below is what a recommender has worked out about someone's taste in films and \
 books. Turn it into a taste horoscope: a fun, cheeky reading they'd screenshot and send to \
@@ -48,10 +46,6 @@ noise: ignore any that don't fit the titles.
 # No example reading: the model copied any example's structure line for line.
 
 Chat = Callable[[list[dict]], str]  # messages -> reply text
-
-
-class DescribeError(Exception):
-    """Something the user should see, e.g. Ollama not running or the model missing."""
 
 
 def _claims(title: str, pos: list[TagClaim], neg: list[TagClaim], k: int) -> list[str]:
@@ -88,29 +82,13 @@ def taste_brief(models: dict[str, UserModel], traits: TraitSpace | None, ratings
     return "\n".join(lines).strip()
 
 
-def ollama_chat(messages: list[dict]) -> str:
-    """One non-streaming chat turn against the local Ollama server."""
+def default_chat(messages: list[dict]) -> str:
     load_env()
-    url = os.environ.get("OLLAMA_URL", OLLAMA_URL).rstrip("/")
-    model = os.environ.get("OLLAMA_MODEL", OLLAMA_MODEL)
-    # think=False: reasoning models (e.g. qwen3) answer directly instead of thinking first.
     # A higher temperature keeps the readings playful and different on each press.
-    body = json.dumps({"model": model, "messages": messages, "stream": False, "think": False,
-                       "options": {"temperature": 1.0}}).encode()
-    request = urllib.request.Request(f"{url}/api/chat", data=body, headers={"Content-Type": "application/json"})
-    try:
-        with urllib.request.urlopen(request, timeout=180) as response:
-            return json.loads(response.read())["message"]["content"]
-    except urllib.error.HTTPError as e:
-        detail = e.read().decode(errors="replace")
-        if e.code == 404:
-            raise DescribeError(f"Ollama doesn't have {model}; run `ollama pull {model}`.") from None
-        raise DescribeError(f"Ollama returned an error ({e.code}): {detail}") from None
-    except (urllib.error.URLError, TimeoutError, ConnectionError):
-        raise DescribeError(f"Couldn't reach Ollama at {url}; is it running?") from None
+    return ollama_chat(messages, os.environ.get("OLLAMA_MODEL", OLLAMA_MODEL), options={"temperature": 1.0})
 
 
-def describe(brief: str, chat: Chat = ollama_chat) -> str:
+def describe(brief: str, chat: Chat = default_chat) -> str:
     """Three sentences about the person behind `brief`. Raises DescribeError on failure."""
     reply = chat([{"role": "system", "content": SYSTEM}, {"role": "user", "content": brief}])
     # Some models still emit their reasoning inline; keep only the answer.

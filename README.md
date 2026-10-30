@@ -6,16 +6,22 @@ New to the maths? Start with [docs/how-it-works.md](docs/how-it-works.md), a pla
 
 ## Run
 
+The backend (Python: model, storage, HTTP API) lives in `backend/`. A multi-platform frontend (`frontend/`, Expo) replaces the Streamlit PoC next.
+
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"
-cp .env.example .env                               # then fill in the source URLs (and Ollama settings, if not the defaults)
-.venv/Scripts/python scripts/prepare_data.py film  # one-off, writes data/film/
-.venv/Scripts/python scripts/prepare_data.py book  # one-off, writes data/book/ and data/traits.json
-.venv/Scripts/python scripts/seed_profiles.py      # optional: normie and romantic test profiles
-.venv/Scripts/streamlit run taste/view/app.py
-.venv/Scripts/python -m pytest                     # tests
+.venv/Scripts/python -m pip install -e "backend[dev]"
+cp .env.example .env                                       # then fill in the source URLs (and Ollama settings, if not the defaults)
+cd backend
+../.venv/Scripts/python scripts/prepare_data.py film       # one-off, writes data/film/
+../.venv/Scripts/python scripts/prepare_data.py book       # one-off, writes data/book/ and data/traits.json
+../.venv/Scripts/python scripts/seed_profiles.py           # optional: normie and romantic test profiles
+../.venv/Scripts/uvicorn taste.api.app:app --reload        # the API; docs at http://localhost:8000/docs
+../.venv/Scripts/streamlit run taste/view/app.py           # the Streamlit PoC (until the Expo app replaces it)
+../.venv/Scripts/python -m pytest                          # tests
 ```
+
+Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
 
 `data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and the profiles in `data/users/<name>.json`, each with its ratings and latest Describe Me.
 
@@ -31,27 +37,46 @@ cp .env.example .env                               # then fill in the source URL
 
   Every claim lists the rated items behind it. **Describe Me** asks a local [Ollama](https://ollama.com) model for a fun four-line "taste horoscope" built from your profile. By default it uses `qwen3:8b` at `http://localhost:11434`; set `OLLAMA_MODEL` / `OLLAMA_URL` in `.env` to change that.
 
+## API
+
+`backend/taste/api/`, FastAPI. Everything is per user under `/profiles/{user}`:
+
+| | |
+|---|---|
+| `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
+| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=` | a page of item cards (series collapsed) |
+| `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
+| `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
+| `GET …/profile` | shared traits and each domain's own taste, with evidence |
+| `GET` / `POST …/description` | the saved Describe Me / write a new one (~30 s locally) |
+| `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results |
+
+`backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`.
+
 ## Layout
 
 ```
-taste/model/      calculations, no UI
+backend/          the Python backend (paths below are inside it)
+taste/model/      calculations: no UI, no storage
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
-  ratings.py      profiles in data/users/: ratings across domains, and the saved Describe Me
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
                   ranking, series collapsing, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
   describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
   llm.py          the local Ollama client both of those use
-taste/env.py      reads .env (source URLs, Ollama settings)
-taste/view/       Streamlit UI, imports taste.model
-  app.py          entry point: sidebar, tabs, wiring
-  components.py   item rows, rating buttons, score breakdown, profile lists
+taste/storage/    per-user ratings, Describe Me, last shelf scan: ProfileStore + JsonProfileStore
+taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), routes, schemas
+taste/settings.py settings from the environment / .env
+taste/view/       Streamlit PoC UI (to be replaced by frontend/)
 scripts/
   prepare_data.py     prepare_data.py <domain>
   seed_profiles.py    test profiles (normie, romantic) built from lists of titles
+  export_openapi.py   the API spec, for the frontend
+  scan_photo.py       run Shelf scan on photos from the command line
   sources/            one adapter per source dataset, all writing the common format
-tests/            pytest: films, books, ratings, cross-domain transfer, Describe Me (no network)
+tests/            pytest: model, storage and API (no network)
+Dockerfile        the API image
 docs/             how-it-works.md
 ```
 
@@ -83,4 +108,4 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 - **Quality leaks into taste.** Tags like "oscar (best actor)" and "inspirational" track acclaim as much as taste.
 - **Source tag noise.** Some single tags are unreliable, e.g. "race" on a racing anime, or "cia" on *The Shining*.
 - **Book years** are often the year of a later edition, not first publication.
-- **A single user and a local JSON file.** Two browser tabs can overwrite each other's ratings.
+- **Profiles are local JSON files** with no auth, and shelf-scan jobs live in memory (lost on restart). A database and auth come next.

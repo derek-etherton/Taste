@@ -6,7 +6,10 @@ New to the maths? Start with [docs/how-it-works.md](docs/how-it-works.md), a pla
 
 ## Run
 
-The backend (Python: model, storage, HTTP API) lives in `backend/`. A multi-platform frontend (`frontend/`, Expo) replaces the Streamlit PoC next.
+Two parts, deployed independently:
+
+- `backend/`: Python model, storage and HTTP API (FastAPI).
+- `frontend/`: the app for web, Android and iOS (Expo / React Native), talking to the API. See [frontend/README.md](frontend/README.md).
 
 ```bash
 python -m venv .venv
@@ -17,9 +20,11 @@ cd backend
 ../.venv/Scripts/python scripts/prepare_data.py book       # one-off, writes data/book/ and data/traits.json
 ../.venv/Scripts/python scripts/seed_profiles.py           # optional: normie and romantic test profiles
 ../.venv/Scripts/uvicorn taste.api.app:app --reload        # the API; docs at http://localhost:8000/docs
-../.venv/Scripts/streamlit run taste/view/app.py           # the Streamlit PoC (until the Expo app replaces it)
 ../.venv/Scripts/python -m pytest                          # tests
+cd ../frontend && npm install && npm run web               # the app in a browser, against the local API
 ```
+
+After the one-off setup, `python dev.py` from the repo root starts both the API (port 8000, auto-reloading) and the web app (port 8081). Ctrl+C stops both.
 
 Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
 
@@ -27,9 +32,13 @@ Settings come from the environment or the repo's `.env` (see `backend/taste/sett
 
 ## Using the app
 
-- **Sidebar.** Pick a **Profile** (`main` is yours; others are for testing), then Films or Books. **Weight on general quality** sets how much widely-liked items get a boost.
-- **For you.** Unrated items ranked by how well they match you. The percentile button opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop (on a phone, the upload button offers the camera). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the **Profile** choice (`main` is yours; others are for testing) and **Weight on general quality** (how much widely-liked items get a boost).
+
+- **Discover.** Pick Films or Books, then:
+  - **For you:** unrated items ranked by how well they match you. The percentile chip opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
+  - **Rate films / Rate books:** see below.
+  - **Your ratings.** Search covers the whole catalogue. 👍 😐 👎 rate an item; tapping the same one again clears it.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
 - **Rate films / Rate books.** Every unrated item. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
 - **Profile.** Three views:
   - **Shared traits:** taste that carries across domains.
@@ -68,7 +77,6 @@ taste/model/      calculations: no UI, no storage
 taste/storage/    per-user ratings, Describe Me, last shelf scan: ProfileStore + JsonProfileStore
 taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), routes, schemas
 taste/settings.py settings from the environment / .env
-taste/view/       Streamlit PoC UI (to be replaced by frontend/)
 scripts/
   prepare_data.py     prepare_data.py <domain>
   seed_profiles.py    test profiles (normie, romantic) built from lists of titles

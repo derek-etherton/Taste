@@ -8,10 +8,10 @@
       "port": 8000
     },
     {
-      "name": "taste",
-      "runtimeExecutable": ".venv/Scripts/streamlit.exe",
-      "runtimeArgs": ["run", "backend/taste/view/app.py", "--server.headless", "true", "--server.port", "8501"],
-      "port": 8501
+      "name": "web",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--prefix", "frontend", "expo", "start", "--web", "--port", "8081"],
+      "port": 8081
     }
   ]
 }

@@ -11,8 +11,6 @@ dependencies = [
     "pydantic-settings",
     "python-multipart",  # photo uploads
     "rapidfuzz",
-    "streamlit",  # the PoC UI in taste/view; removed once the Expo app replaces it
-    "streamlit-keyup",
     "truststore",  # OS certificate store for the dataset download
     "uvicorn[standard]",
 ]

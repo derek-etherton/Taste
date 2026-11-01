@@ -190,3 +190,17 @@ def test_failed_scan_keeps_the_last_good_one(client, engine):
         assert scan["photo_name"] == "shelf.jpg" and scan["books"]  # the previous scan is still shown
     finally:
         engine.reader = reader
+
+
+def test_tag_filter(client, cats):
+    tags = client.get("/domains/book/tags").json()
+    assert "wizards" in tags and tags == sorted(tags, key=str.lower)
+    page = client.get("/profiles/main/book/items", params={"tags": ["wizards", "dark"], "page_size": 50}).json()
+    cards = page["items"]
+    plain = client.get("/profiles/main/book/items", params={"page_size": 50}).json()["items"]
+    assert min(c["tag_match"] for c in cards[:10]) > 0.5  # wizardly and dark...
+    assert min(c["percentile"] for c in cards[:10]) > 50  # ...and high on your list
+    assert {c["key"] for c in cards} != {c["key"] for c in plain}
+    assert page["total"] > 1000  # it orders the list, it doesn't shrink it
+    assert client.get("/profiles/main/book/items").json()["items"][0]["tag_match"] is None
+    assert client.get("/profiles/main/book/items", params={"tags": ["nope"]}).status_code == 422

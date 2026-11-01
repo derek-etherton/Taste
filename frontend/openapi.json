@@ -189,7 +189,7 @@
   "/profiles/{user}/{domain}/items": {
    "get": {
     "summary": "Items",
-    "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.",
+    "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.\nWith tags, the order is tag_match \u00d7 the item's percentile in the mode's own order: a soft AND,\nso what comes first both has the tags and is high on your list.",
     "operationId": "items_profiles__user___domain__items_get",
     "parameters": [
      {
@@ -271,6 +271,20 @@
        "title": "Quality"
       },
       "description": "Weight on general quality; 0 = pure taste match"
+     },
+     {
+      "name": "tags",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 10,
+       "default": [],
+       "title": "Tags"
+      }
      }
     ],
     "responses": {
@@ -280,6 +294,50 @@
        "application/json": {
         "schema": {
          "$ref": "#/components/schemas/ItemPage"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/domains/{domain}/tags": {
+   "get": {
+    "summary": "Tags",
+    "description": "The active genome's tags for a domain, alphabetical: what the list can be filtered by.",
+    "operationId": "tags_domains__domain__tags_get",
+    "parameters": [
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "title": "Response Tags Domains  Domain  Tags Get"
         }
        }
       }
@@ -1407,6 +1465,17 @@
        }
       ],
       "title": "Similarity"
+     },
+     "tag_match": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag Match"
      }
     },
     "type": "object",

@@ -2,6 +2,7 @@
 
 from typing import Annotated, Literal
 
+import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Request, Response, UploadFile
 
 from taste.api import schemas
@@ -94,17 +95,36 @@ def summary(user: User, e: E) -> list[schemas.DomainSummary]:
 @router.get("/profiles/{user}/{domain}/items")
 def items(user: User, domain: str, e: E, mode: Literal["for_you", "rate"] = "for_you",
           q: str = "", page: Annotated[int, Query(ge=1)] = 1,
-          page_size: Annotated[int, Query(ge=1, le=100)] = 25, quality: Quality = 0.1) -> schemas.ItemPage:
+          page_size: Annotated[int, Query(ge=1, le=100)] = 25, quality: Quality = 0.1,
+          tags: Annotated[list[str], Query(max_length=10)] = []) -> schemas.ItemPage:
     """For you: unrated items, best match first. Rate: what rating would teach the profile most.
-    A search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item."""
+    A search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.
+    With tags, the order is tag_match × the item's percentile in the mode's own order: a soft AND,
+    so what comes first both has the tags and is high on your list."""
     cat = catalog_or_404(e, domain)
+    if unknown := [t for t in tags if t not in cat.tags]:
+        raise HTTPException(422, f"No such tag in {domain}: {', '.join(unknown)}")
     ratings = e.store.ratings(user)
     model = e.models(ratings)[domain]
     hits = cat.search(q.strip()) if q.strip() else None
     pool = model.ranked(quality, rows=hits) if mode == "for_you" else model.teaching_order(rows=hits)
+    match = cat.tag_match(tags) if tags else None
+    if match is not None:
+        percentile = 1 - np.arange(len(pool)) / max(len(pool) - 1, 1)  # 1 for the mode's top item, 0 for its last
+        pool = pool[np.argsort(-match[pool] * percentile, kind="stable")]
     start = (page - 1) * page_size
-    return schemas.ItemPage(items=e.cards(model, pool[start:start + page_size], quality),
-                            total=len(pool), page=page, page_size=page_size, source=e.source(domain, ratings))
+    shown = pool[start:start + page_size]
+    cards = e.cards(model, shown, quality)
+    if match is not None:
+        cards = [c.model_copy(update={"tag_match": round(float(match[i]), 3)}) for c, i in zip(cards, shown)]
+    return schemas.ItemPage(items=cards, total=len(pool), page=page, page_size=page_size,
+                            source=e.source(domain, ratings))
+
+
+@router.get("/domains/{domain}/tags")
+def tags(domain: str, e: E) -> list[str]:
+    """The active genome's tags for a domain, alphabetical: what the list can be filtered by."""
+    return sorted(catalog_or_404(e, domain).tags, key=str.lower)
 
 
 @router.get("/profiles/{user}/{domain}/items/{key}")

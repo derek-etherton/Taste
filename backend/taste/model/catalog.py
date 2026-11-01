@@ -97,6 +97,11 @@ class Catalog:
         sim[i] = -np.inf
         return np.argsort(-sim, kind="stable")[:-1]
 
+    def tag_match(self, tags: list[str]) -> np.ndarray:
+        """How strongly each row has all the given tags: the mean of its raw scores (0 to 1)."""
+        cols = [self.tags.index(t) for t in tags]
+        return self.relevance[:, cols].mean(axis=1) + self.center[cols].mean()
+
     def distinctive(self, i: int, k: int = 10) -> list[tuple[str, float, float]]:
         """The k tags row i has most above the catalogue's average: (tag, its score, average)."""
         top = np.argsort(-self.relevance[i], kind="stable")[:k]

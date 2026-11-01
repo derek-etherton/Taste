@@ -124,8 +124,30 @@ export interface paths {
          * Items
          * @description For you: unrated items, best match first. Rate: what rating would teach the profile most.
          *     A search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.
+         *     With tags, the order is tag_match × the item's percentile in the mode's own order: a soft AND,
+         *     so what comes first both has the tags and is high on your list.
          */
         get: operations["items_profiles__user___domain__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/domains/{domain}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tags
+         * @description The active genome's tags for a domain, alphabetical: what the list can be filtered by.
+         */
+        get: operations["tags_domains__domain__tags_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -487,6 +509,8 @@ export interface components {
             location?: string | null;
             /** Similarity */
             similarity?: number | null;
+            /** Tag Match */
+            tag_match?: number | null;
         };
         /**
          * ItemDetail
@@ -773,6 +797,7 @@ export interface operations {
                 page_size?: number;
                 /** @description Weight on general quality; 0 = pure taste match */
                 quality?: number;
+                tags?: string[];
             };
             header?: never;
             path: {
@@ -790,6 +815,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tags_domains__domain__tags_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": string[];
                 };
             };
             /** @description Validation Error */

@@ -34,18 +34,27 @@ export function useSummary(user: string) {
   });
 }
 
-export function useItems(user: string, domain: string, mode: Mode, q: string, quality: number) {
+export function useItems(user: string, domain: string, mode: Mode, q: string, quality: number, tags: string[] = []) {
   return useInfiniteQuery({
-    queryKey: [user, 'items', domain, mode, q, quality],
+    queryKey: [user, 'items', domain, mode, q, quality, tags],
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
       unwrap(
         api.GET('/profiles/{user}/{domain}/items', {
-          params: { path: { user, domain }, query: { mode, q, quality, page: pageParam, page_size: PAGE_SIZE } },
+          params: { path: { user, domain }, query: { mode, q, quality, tags, page: pageParam, page_size: PAGE_SIZE } },
         }),
       ),
     getNextPageParam: (last) => (last.page * last.page_size < last.total ? last.page + 1 : undefined),
     placeholderData: keepPreviousData, // keep the old list on screen while a new search loads
+  });
+}
+
+/** What a domain's list can be filtered by: its genome's tags, alphabetical. */
+export function useTags(domain: string) {
+  return useQuery({
+    queryKey: ['tags', domain],
+    queryFn: () => unwrap(api.GET('/domains/{domain}/tags', { params: { path: { domain } } })),
+    staleTime: Infinity, // changes only when the genome is switched, which invalidates everything
   });
 }
 

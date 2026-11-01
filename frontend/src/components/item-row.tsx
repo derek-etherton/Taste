@@ -64,6 +64,7 @@ export function ItemRow({
   const details = [
     item.location ? `📍 ${item.location}` : '',
     item.similarity != null ? `similarity ${item.similarity.toFixed(2)}` : '',
+    item.tag_match != null ? `tag match ${item.tag_match.toFixed(2)}` : '',
     item.creator,
     item.genres.join(' · '),
   ].filter(Boolean);

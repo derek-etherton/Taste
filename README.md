@@ -54,7 +54,8 @@ Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the *
 |---|---|
 | `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
 | `GET /genomes`, `PUT /genomes/{domain}` | each domain's genomes and the active one; switch (`{"genome": "<name>"}`, server-wide) |
-| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=` | a page of item cards |
+| `GET /domains/{domain}/tags` | the active genome's tags, to filter by |
+| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=&tags=` | a page of item cards; with `tags` (repeatable), sorted by `tag_match` × the item's percentile in the mode's own order (has the tags *and* is high on your list) |
 | `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items |
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |

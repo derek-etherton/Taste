@@ -52,6 +52,7 @@ class ItemCard(BaseModel):
     because: list[Because]
     location: str | None = None  # shelf scan only: roughly where it is on the shelf
     similarity: float | None = None  # item pages' related items only: to the page's item, -1 to 1
+    tag_match: float | None = None  # lists filtered by tags only: how strongly it has them, 0 to 1
 
 
 class ItemPage(BaseModel):

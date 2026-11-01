@@ -8,6 +8,7 @@ import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
 import { Chips, Loading, Note, Screen, TabStrip, listPadding, topInset } from '@/components/kit';
 import { SettingsBar } from '@/components/settings-bar';
+import { TagFilter } from '@/components/tag-filter';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -32,8 +33,11 @@ export default function Discover() {
   const [text, setText] = useState('');
   const q = useDebounced(text.trim());
   const [explaining, setExplaining] = useState<ItemCard | null>(null);
+  const [tagsByDomain, setTagsByDomain] = useState<Record<string, string[]>>({}); // films and books have different tags
+  const tags = tagsByDomain[domain] ?? [];
+  const setTags = (t: string[]) => setTagsByDomain((all) => ({ ...all, [domain]: t }));
 
-  const items = useItems(user, domain, view === 'rated' ? 'for_you' : view, q, quality);
+  const items = useItems(user, domain, view === 'rated' ? 'for_you' : view, q, quality, tags);
   const rated = useRated(user, domain, quality);
   const name = summary.data?.find((d) => d.domain === domain)?.name ?? 'Films';
   const thisDomain = summary.data?.find((d) => d.domain === domain);
@@ -74,6 +78,7 @@ export default function Discover() {
           style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
         />
       )}
+      {view !== 'rated' && <TagFilter domain={domain} value={tags} onChange={setTags} />}
       {view === 'for_you' && !q && thisDomain?.rated === 0 && !source && (
         <Note>{`Rate a few ${name.toLowerCase()}. Until then this is just the best-rated overall.`}</Note>
       )}

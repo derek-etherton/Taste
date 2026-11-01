@@ -38,6 +38,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/genomes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Genomes
+         * @description Each domain's available genomes and the active one.
+         */
+        get: operations["list_genomes_genomes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/genomes/{domain}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Switch Genome
+         * @description Rebuild a domain's catalogue from another genome, for every user (a testing switch).
+         *     Ratings stay saved; items the genome lacks don't appear until you switch back.
+         */
+        put: operations["switch_genome_genomes__domain__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles": {
         parameters: {
             query?: never;
@@ -82,9 +123,29 @@ export interface paths {
         /**
          * Items
          * @description For you: unrated items, best match first. Rate: what rating would teach the profile most.
-         *     A search (q) covers the whole catalogue, rated items included. Series show once.
+         *     A search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.
          */
         get: operations["items_profiles__user___domain__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{user}/{domain}/items/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Item
+         * @description An item's page: card, distinctive tags, the score breakdown, and the most similar items.
+         */
+        get: operations["item_profiles__user___domain__items__key__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -102,7 +163,7 @@ export interface paths {
         };
         /**
          * Explanation
-         * @description Why an item scores what it does: the percentile popover.
+         * @description Why an item scores what it does: the score popover.
          */
         get: operations["explanation_profiles__user___domain__items__key__explanation_get"];
         put?: never;
@@ -300,6 +361,8 @@ export interface components {
             name: string;
             /** Items */
             items: number;
+            /** Genome */
+            genome: string;
         };
         /** DomainProfile */
         DomainProfile: {
@@ -357,6 +420,40 @@ export interface components {
             /** Pushing Down */
             pushing_down: components["schemas"]["TagContribution"][];
         };
+        /** GenomeIn */
+        GenomeIn: {
+            /** Genome */
+            genome: string;
+        };
+        /** GenomeOption */
+        GenomeOption: {
+            /** Name */
+            name: string;
+            /** Kind */
+            kind: string;
+            /** Description */
+            description: string;
+        };
+        /**
+         * Genomes
+         * @description A domain's genomes: which are available, and what the active one holds.
+         */
+        Genomes: {
+            /** Domain */
+            domain: string;
+            /** Active */
+            active: string;
+            /** Options */
+            options: components["schemas"]["GenomeOption"][];
+            /** Items */
+            items: number;
+            /** Tags */
+            tags: number;
+            /** Linked */
+            linked: number | null;
+            /** Traits */
+            traits: number;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -378,11 +475,8 @@ export interface components {
             genres: string[];
             /** Series */
             series: string | null;
-            /**
-             * More In Series
-             * @default 0
-             */
-            more_in_series: number;
+            /** Score */
+            score: number;
             /** Percentile */
             percentile: number;
             /** Rated */
@@ -391,6 +485,20 @@ export interface components {
             because: components["schemas"]["Because"][];
             /** Location */
             location?: string | null;
+            /** Similarity */
+            similarity?: number | null;
+        };
+        /**
+         * ItemDetail
+         * @description One item's page: its card, what sets it apart, why it scores what it does, and similar items.
+         */
+        ItemDetail: {
+            card: components["schemas"]["ItemCard"];
+            /** Distinctive */
+            distinctive: components["schemas"]["TagStrength"][];
+            explanation: components["schemas"]["Explanation"];
+            /** Related */
+            related: components["schemas"]["ItemCard"][];
         };
         /** ItemPage */
         ItemPage: {
@@ -477,6 +585,15 @@ export interface components {
             /** From Other Domain */
             from_other_domain: boolean;
         };
+        /** TagStrength */
+        TagStrength: {
+            /** Tag */
+            tag: string;
+            /** Score */
+            score: number;
+            /** Average */
+            average: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -537,6 +654,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Domain"][];
+                };
+            };
+        };
+    };
+    list_genomes_genomes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Genomes"][];
+                };
+            };
+        };
+    };
+    switch_genome_genomes__domain__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                domain: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenomeIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Genomes"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -618,6 +790,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ItemPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    item_profiles__user___domain__items__key__get: {
+        parameters: {
+            query?: {
+                /** @description Weight on general quality; 0 = pure taste match */
+                quality?: number;
+                related?: number;
+            };
+            header?: never;
+            path: {
+                user: string;
+                domain: string;
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ItemDetail"];
                 };
             };
             /** @description Validation Error */

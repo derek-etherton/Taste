@@ -12,6 +12,7 @@ import base64
 import io
 import json
 import re
+import weakref
 from dataclasses import dataclass, field, replace
 from typing import Callable
 
@@ -236,16 +237,16 @@ def normalise(text: str) -> str:
     return ARTICLES.sub("", " ".join(text.split()))
 
 
-_index: dict[int, tuple[list[str], list[str]]] = {}
+_index: "weakref.WeakKeyDictionary[Catalog, tuple[list[str], list[str]]]" = weakref.WeakKeyDictionary()
 
 
 def _titles(cat: Catalog) -> tuple[list[str], list[str]]:
     """Normalised full titles and main titles (before any subtitle), cached per catalogue."""
-    if id(cat) not in _index:
+    if cat not in _index:
         full = [normalise(t) for t in cat.items["title"]]
         main = [normalise(t.split(":")[0]) for t in cat.items["title"]]
-        _index[id(cat)] = (full, main)
-    return _index[id(cat)]
+        _index[cat] = (full, main)
+    return _index[cat]
 
 
 def candidates(spine: Spine, cat: Catalog, limit: int = 10) -> list[tuple[int, float]]:

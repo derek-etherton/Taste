@@ -1,9 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { useState } from 'react';
 import { useColorScheme } from 'react-native';
 
-import AppTabs from '@/components/app-tabs';
 import { SettingsProvider } from '@/state/settings';
 
 export default function RootLayout() {
@@ -13,7 +12,8 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
         <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-          <AppTabs />
+          {/* The tabs, with item pages pushed on top of them. */}
+          <Stack screenOptions={{ headerShown: false }} />
         </ThemeProvider>
       </SettingsProvider>
     </QueryClientProvider>

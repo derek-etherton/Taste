@@ -47,6 +47,79 @@
     }
    }
   },
+  "/genomes": {
+   "get": {
+    "summary": "List Genomes",
+    "description": "Each domain's available genomes and the active one.",
+    "operationId": "list_genomes_genomes_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Genomes"
+         },
+         "type": "array",
+         "title": "Response List Genomes Genomes Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/genomes/{domain}": {
+   "put": {
+    "summary": "Switch Genome",
+    "description": "Rebuild a domain's catalogue from another genome, for every user (a testing switch).\nRatings stay saved; items the genome lacks don't appear until you switch back.",
+    "operationId": "switch_genome_genomes__domain__put",
+    "parameters": [
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GenomeIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Genomes"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/profiles": {
    "get": {
     "summary": "Profiles",
@@ -116,7 +189,7 @@
   "/profiles/{user}/{domain}/items": {
    "get": {
     "summary": "Items",
-    "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Series show once.",
+    "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.",
     "operationId": "items_profiles__user___domain__items_get",
     "parameters": [
      {
@@ -224,10 +297,95 @@
     }
    }
   },
+  "/profiles/{user}/{domain}/items/{key}": {
+   "get": {
+    "summary": "Item",
+    "description": "An item's page: card, distinctive tags, the score breakdown, and the most similar items.",
+    "operationId": "item_profiles__user___domain__items__key__get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     },
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     },
+     {
+      "name": "related",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50,
+       "minimum": 0,
+       "default": 10,
+       "title": "Related"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ItemDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/profiles/{user}/{domain}/items/{key}/explanation": {
    "get": {
     "summary": "Explanation",
-    "description": "Why an item scores what it does: the percentile popover.",
+    "description": "Why an item scores what it does: the score popover.",
     "operationId": "explanation_profiles__user___domain__items__key__explanation_get",
     "parameters": [
      {
@@ -873,13 +1031,18 @@
      "items": {
       "type": "integer",
       "title": "Items"
+     },
+     "genome": {
+      "type": "string",
+      "title": "Genome"
      }
     },
     "type": "object",
     "required": [
      "id",
      "name",
-     "items"
+     "items",
+     "genome"
     ],
     "title": "Domain"
    },
@@ -1042,6 +1205,96 @@
     ],
     "title": "Explanation"
    },
+   "GenomeIn": {
+    "properties": {
+     "genome": {
+      "type": "string",
+      "title": "Genome"
+     }
+    },
+    "type": "object",
+    "required": [
+     "genome"
+    ],
+    "title": "GenomeIn"
+   },
+   "GenomeOption": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "description": {
+      "type": "string",
+      "title": "Description"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "kind",
+     "description"
+    ],
+    "title": "GenomeOption"
+   },
+   "Genomes": {
+    "properties": {
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "active": {
+      "type": "string",
+      "title": "Active"
+     },
+     "options": {
+      "items": {
+       "$ref": "#/components/schemas/GenomeOption"
+      },
+      "type": "array",
+      "title": "Options"
+     },
+     "items": {
+      "type": "integer",
+      "title": "Items"
+     },
+     "tags": {
+      "type": "integer",
+      "title": "Tags"
+     },
+     "linked": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Linked"
+     },
+     "traits": {
+      "type": "integer",
+      "title": "Traits"
+     }
+    },
+    "type": "object",
+    "required": [
+     "domain",
+     "active",
+     "options",
+     "items",
+     "tags",
+     "linked",
+     "traits"
+    ],
+    "title": "Genomes",
+    "description": "A domain's genomes: which are available, and what the active one holds."
+   },
    "HTTPValidationError": {
     "properties": {
      "detail": {
@@ -1102,10 +1355,9 @@
       ],
       "title": "Series"
      },
-     "more_in_series": {
-      "type": "integer",
-      "title": "More In Series",
-      "default": 0
+     "score": {
+      "type": "number",
+      "title": "Score"
      },
      "percentile": {
       "type": "number",
@@ -1144,6 +1396,17 @@
        }
       ],
       "title": "Location"
+     },
+     "similarity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Similarity"
      }
     },
     "type": "object",
@@ -1155,11 +1418,45 @@
      "creator",
      "genres",
      "series",
+     "score",
      "percentile",
      "rated",
      "because"
     ],
     "title": "ItemCard"
+   },
+   "ItemDetail": {
+    "properties": {
+     "card": {
+      "$ref": "#/components/schemas/ItemCard"
+     },
+     "distinctive": {
+      "items": {
+       "$ref": "#/components/schemas/TagStrength"
+      },
+      "type": "array",
+      "title": "Distinctive"
+     },
+     "explanation": {
+      "$ref": "#/components/schemas/Explanation"
+     },
+     "related": {
+      "items": {
+       "$ref": "#/components/schemas/ItemCard"
+      },
+      "type": "array",
+      "title": "Related"
+     }
+    },
+    "type": "object",
+    "required": [
+     "card",
+     "distinctive",
+     "explanation",
+     "related"
+    ],
+    "title": "ItemDetail",
+    "description": "One item's page: its card, what sets it apart, why it scores what it does, and similar items."
    },
    "ItemPage": {
     "properties": {
@@ -1407,6 +1704,29 @@
      "from_other_domain"
     ],
     "title": "TagContribution"
+   },
+   "TagStrength": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "average": {
+      "type": "number",
+      "title": "Average"
+     }
+    },
+    "type": "object",
+    "required": [
+     "tag",
+     "score",
+     "average"
+    ],
+    "title": "TagStrength"
    },
    "ValidationError": {
     "properties": {

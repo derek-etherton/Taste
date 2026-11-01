@@ -43,7 +43,38 @@ def health() -> dict:
 
 @router.get("/domains")
 def domains(e: E) -> list[schemas.Domain]:
-    return [schemas.Domain(id=d, name=c.name, items=len(c)) for d, c in e.cats.items()]
+    return [schemas.Domain(id=d, name=c.name, items=len(c), genome=c.genome) for d, c in e.cats.items()]
+
+
+# --- genomes ----------------------------------------------------------------------------------
+
+def genomes_out(e: Engine, domain: str) -> schemas.Genomes:
+    cat = catalog_or_404(e, domain)
+    traits = e.traits
+    return schemas.Genomes(
+        domain=domain, active=cat.genome, items=len(cat), tags=len(cat.tags), linked=cat.linked,
+        traits=len(traits) if traits and domain in traits.domains else 0,
+        options=[schemas.GenomeOption(name=g.name, kind=g.kind, description=g.description)
+                 for g in e.genomes(domain).values()],
+    )
+
+
+@router.get("/genomes")
+def list_genomes(e: E) -> list[schemas.Genomes]:
+    """Each domain's available genomes and the active one."""
+    return [genomes_out(e, d) for d in e.cats]
+
+
+@router.put("/genomes/{domain}")
+def switch_genome(domain: str, body: schemas.GenomeIn, e: E) -> schemas.Genomes:
+    """Rebuild a domain's catalogue from another genome, for every user (a testing switch).
+    Ratings stay saved; items the genome lacks don't appear until you switch back."""
+    catalog_or_404(e, domain)
+    try:
+        e.switch_genome(domain, body.genome)
+    except KeyError as err:
+        raise HTTPException(404, err.args[0])
+    return genomes_out(e, domain)
 
 
 @router.get("/profiles")
@@ -65,21 +96,38 @@ def items(user: User, domain: str, e: E, mode: Literal["for_you", "rate"] = "for
           q: str = "", page: Annotated[int, Query(ge=1)] = 1,
           page_size: Annotated[int, Query(ge=1, le=100)] = 25, quality: Quality = 0.1) -> schemas.ItemPage:
     """For you: unrated items, best match first. Rate: what rating would teach the profile most.
-    A search (q) covers the whole catalogue, rated items included. Series show once."""
+    A search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item."""
     cat = catalog_or_404(e, domain)
     ratings = e.store.ratings(user)
     model = e.models(ratings)[domain]
     hits = cat.search(q.strip()) if q.strip() else None
     pool = model.ranked(quality, rows=hits) if mode == "for_you" else model.teaching_order(rows=hits)
-    pool, more = model.collapse_series(pool)
     start = (page - 1) * page_size
-    return schemas.ItemPage(items=e.cards(model, pool[start:start + page_size], quality, more=more),
+    return schemas.ItemPage(items=e.cards(model, pool[start:start + page_size], quality),
                             total=len(pool), page=page, page_size=page_size, source=e.source(domain, ratings))
+
+
+@router.get("/profiles/{user}/{domain}/items/{key}")
+def item(user: User, domain: str, key: str, e: E, quality: Quality = 0.1,
+         related: Annotated[int, Query(ge=0, le=50)] = 10) -> schemas.ItemDetail:
+    """An item's page: card, distinctive tags, the score breakdown, and the most similar items."""
+    cat = catalog_or_404(e, domain)
+    i = row_or_404(cat, key)
+    model = e.models(e.store.ratings(user))[domain]
+    similar, similarity = cat.similar(i)[:related], cat.similarity(i)
+    return schemas.ItemDetail(
+        card=e.cards(model, [i], quality)[0],
+        distinctive=[schemas.TagStrength(tag=t, score=round(s, 3), average=round(a, 3))
+                     for t, s, a in cat.distinctive(i)],
+        explanation=explanation(user, domain, key, e, quality),
+        related=[c.model_copy(update={"similarity": round(float(similarity[r]), 3)})
+                 for c, r in zip(e.cards(model, similar, quality), similar)],
+    )
 
 
 @router.get("/profiles/{user}/{domain}/items/{key}/explanation")
 def explanation(user: User, domain: str, key: str, e: E, quality: Quality = 0.1) -> schemas.Explanation:
-    """Why an item scores what it does: the percentile popover."""
+    """Why an item scores what it does: the score popover."""
     cat = catalog_or_404(e, domain)
     model = e.models(e.store.ratings(user))[domain]
     ex = model.explain(row_or_404(cat, key), quality)

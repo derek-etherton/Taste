@@ -179,36 +179,6 @@ class UserModel:
         rest = rest[np.argsort(-v[rest], kind="stable")]
         return rows[np.concatenate([order, rest]).astype(int)]
 
-    def collapse_series(self, rows) -> tuple[np.ndarray, dict[int, int]]:
-        """One entry per series, at the position of its best-ranked member in `rows`.
-
-        The entry shown is the series' earliest main volume among `rows` that you haven't
-        rated, i.e. the next one to read. Main volumes (#1, #2, ...) beat novellas (#0.5, #2.5);
-        if you've rated them all it falls back to the earliest.
-        Also returns {shown row: how many other volumes of its series were folded into it}.
-        """
-        rows = np.asarray(rows)
-        series, index = self.cat.series[rows], self.cat.series_index[rows]
-        rated = set(self.rows.tolist())
-        members: dict[str, list[int]] = {}
-        for j, s in enumerate(series):
-            if s:
-                members.setdefault(s, []).append(j)
-        out, more, seen = [], {}, set()
-        for j, s in enumerate(series):
-            if not s:
-                out.append(rows[j])
-            elif s not in seen:
-                seen.add(s)
-                group = members[s]
-                unrated = [m for m in group if int(rows[m]) not in rated] or group
-                main = lambda m: index[m] >= 1 and float(index[m]).is_integer()
-                pick = min(unrated, key=lambda m: (not main(m), np.nan_to_num(index[m], nan=np.inf), m))
-                out.append(rows[pick])
-                if len(group) > 1:
-                    more[int(rows[pick])] = len(group) - 1
-        return np.array(out, dtype=int), more
-
     def recommend(self, n: int = 20, quality: float = 0.1) -> list[Explanation]:
         s = self.scores(quality)
         best = self.ranked(quality)[:n]

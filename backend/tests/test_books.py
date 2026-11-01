@@ -26,24 +26,3 @@ def test_recommendations_lean_fantasy(cats, model):
     assert not set(model.rows) & {r.row for r in recs}
     fantasy = cats["book"].tags.index("fantasy")
     assert sum(cats["book"].relevance[r.row, fantasy] > 0 for r in recs) >= 15
-
-
-def test_collapse_series_one_entry_each(cats, model):
-    book = cats["book"]
-    rows, more = model.collapse_series(model.ranked())
-    names = [book.series[i] for i in rows if book.series[i]]
-    assert len(names) == len(set(names)), "a series appears twice"
-    assert len(rows) < len(model.ranked())
-    assert all(book.series[i] for i in more)
-
-
-def test_collapse_series_shows_next_unread(cats):
-    """Rate the first Hunger Games book and the series entry moves on to #2."""
-    book = cats["book"]
-    first = find(book, "The Hunger Games")
-    assert book.series[book.row[first]] == "The Hunger Games"
-    hg = [i for i in range(len(book)) if book.series[i] == "The Hunger Games"]
-    shown = lambda m: [i for i in m.collapse_series(m.ranked())[0] if book.series[i] == "The Hunger Games"]
-    assert book.series_index[shown(UserModel(book, {}))[0]] == 1
-    after = shown(UserModel(book, {first: 1}))
-    assert len(after) == 1 and book.series_index[after[0]] == 2, [book.label(i) for i in hg]

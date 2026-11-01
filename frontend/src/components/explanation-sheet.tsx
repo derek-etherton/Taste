@@ -1,4 +1,4 @@
-/** Why an item scores what it does: percentile, score, the parts from quality and from other
+/** Why an item scores what it does: its score, the parts from quality and from other
  * domains, and the tags pulling it up and pushing it down. A modal, so it works the same everywhere. */
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -69,7 +69,6 @@ export function ExplanationSheet({
               {ex.data && (
                 <>
                   <View style={styles.metrics}>
-                    <Metric label="Percentile" value={ex.data.percentile.toFixed(1)} />
                     <Metric label="Score" value={signed(ex.data.score)} />
                     <Metric label="…from quality" value={signed(ex.data.quality_part)} />
                     <Metric label={`…from your ${source || 'other ratings'}`} value={signed(ex.data.transferred_part)} />
@@ -79,8 +78,8 @@ export function ExplanationSheet({
                     <TagList title="Pushing it down" tags={ex.data.pushing_down} />
                   </View>
                   <ThemedText type="small" themeColor="textSecondary">
-                    Percentile: the share of unrated items this one beats. ↔ marks tags carried over from your
-                    ratings in another domain.
+                    Score: the rating the model expects from you, on your ratings&apos; scale: +1 like, 0 meh, −1
+                    dislike. Strong matches go past ±1. ↔ marks tags carried over from your ratings in another domain.
                   </ThemedText>
                 </>
               )}

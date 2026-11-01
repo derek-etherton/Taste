@@ -9,6 +9,28 @@ class Domain(BaseModel):
     id: str  # "film", "book"
     name: str  # "Films", "Books"
     items: int
+    genome: str  # the active genome, e.g. "default"
+
+
+class GenomeOption(BaseModel):
+    name: str  # "default", or e.g. a BookGenome release's folder name
+    kind: str  # "common" or "bookgenome"
+    description: str
+
+
+class Genomes(BaseModel):
+    """A domain's genomes: which are available, and what the active one holds."""
+    domain: str
+    active: str
+    options: list[GenomeOption]
+    items: int  # in the active genome's catalogue
+    tags: int
+    linked: int | None  # items linked to the default genome's (so ratings carry over); None for the default
+    traits: int  # shared traits with other domains under the active genomes
+
+
+class GenomeIn(BaseModel):
+    genome: str
 
 
 class Because(BaseModel):
@@ -24,11 +46,12 @@ class ItemCard(BaseModel):
     creator: str
     genres: list[str]
     series: str | None
-    more_in_series: int = 0  # other volumes of the series folded into this card
+    score: float  # predicted rating: about +1 like, 0 meh, -1 dislike (taste, plus the quality part)
     percentile: float  # share of unrated items this one beats
     rated: Literal[-1, 0, 1] | None
     because: list[Because]
     location: str | None = None  # shelf scan only: roughly where it is on the shelf
+    similarity: float | None = None  # item pages' related items only: to the page's item, -1 to 1
 
 
 class ItemPage(BaseModel):
@@ -73,6 +96,20 @@ class Claim(BaseModel):
 class Claims(BaseModel):
     respond_to: list[Claim]
     push_back_on: list[Claim]
+
+
+class TagStrength(BaseModel):
+    tag: str
+    score: float  # how much the item has the tag, 0 to 1
+    average: float  # the catalogue's average on the tag (weighted like the centring)
+
+
+class ItemDetail(BaseModel):
+    """One item's page: its card, what sets it apart, why it scores what it does, and similar items."""
+    card: ItemCard
+    distinctive: list[TagStrength]  # the tags it has most above average, strongest first
+    explanation: Explanation
+    related: list[ItemCard]  # most similar items first, each with its similarity
 
 
 class DomainSummary(BaseModel):

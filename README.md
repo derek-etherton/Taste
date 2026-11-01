@@ -35,7 +35,7 @@ Settings come from the environment or the repo's `.env` (see `backend/taste/sett
 Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the **Profile** choice (`main` is yours; others are for testing) and **Weight on general quality** (how much widely-liked items get a boost).
 
 - **Discover.** Pick Films or Books, then:
-  - **For you:** unrated items ranked by how well they match you. The percentile chip opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
+  - **For you:** unrated items ranked by how well they match you. The percentile chip opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain.
   - **Rate films / Rate books:** see below.
   - **Your ratings.** Search covers the whole catalogue. 👍 😐 👎 rate an item; tapping the same one again clears it.
 - **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
@@ -53,7 +53,9 @@ Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the *
 | | |
 |---|---|
 | `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
-| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=` | a page of item cards (series collapsed) |
+| `GET /genomes`, `PUT /genomes/{domain}` | each domain's genomes and the active one; switch (`{"genome": "<name>"}`, server-wide) |
+| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=` | a page of item cards |
+| `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items |
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
 | `GET …/profile` | shared traits and each domain's own taste, with evidence |
@@ -68,8 +70,10 @@ Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the *
 backend/          the Python backend (paths below are inside it)
 taste/model/      calculations: no UI, no storage
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
+  genomes.py      which genomes each domain has (default + data/genomes/<domain>/*) and loading one
+  bookgenome.py   connector for BookGenome releases: links books to the default catalogue
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
-                  ranking, series collapsing, teaching order, explanations
+                  ranking, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
   describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
@@ -99,6 +103,15 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 | `relevance.npy` | items × tags, each score in [0, 1] |
 
 `data/traits.json` lists the tag correspondences between domains, e.g. `{"film": "dystopia", "book": "dystopia"}`. Adding a domain means writing one adapter and extending the correspondences.
+
+### Genomes
+
+`data/<domain>/` is a domain's `default` genome. Others can be switched to at runtime (the **Book genome** chips in the app, or `PUT /genomes/book`), to compare recommendations:
+
+- `data/genomes/<domain>/<name>/` in the common format, or for books a [BookGenome](../BookGenome) release folder;
+- BookGenome release folders used in place, listed in `TASTE_BOOK_GENOME_PATHS` (a JSON list of paths).
+
+`TASTE_BOOK_GENOME` / `TASTE_FILM_GENOME` pick the one the server starts with. A BookGenome release's books are linked to the default catalogue by title and author surname (subtitles, punctuation and "The" ignored), so they keep its IDs, and your ratings; the rest get `book:gb-<release id>` and average quality. Every release book counts equally when centring. Its tags inherit film links from the default tags they were derived from (`tags.csv`), preferring a same-named one; new tags stay book-only. Items missing from the active genome don't appear, but their ratings stay saved.
 
 ## How it works (short version)
 

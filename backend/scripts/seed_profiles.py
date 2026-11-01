@@ -58,7 +58,7 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--force", action="store_true", help="overwrite existing test profiles")
     args = p.parse_args()
-    cats = {d: Catalog(d) for d in {d for spec in PROFILES.values() for d in spec}}
+    cats = {d: Catalog.load(d) for d in {d for spec in PROFILES.values() for d in spec}}
     store = JsonProfileStore()
     for name, spec in PROFILES.items():
         if name in store.users() and not args.force:

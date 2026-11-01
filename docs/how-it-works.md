@@ -134,7 +134,7 @@ The planned fix is to group ingredients that always move together into a few bro
 
 ## 9. Small things that make lists sensible
 
-- **Book series** collapse to one entry: the next volume you haven't rated, placed where the series' best-matching volume ranks.
+- **Book series** aren't treated specially: each volume is its own item, scored and rated on its own.
 - **Explanations stay honest.** Once you've rated some books, a book's reasons are labelled "(from films)" where your film ratings, not your book ratings, account for most of that tag's pull.
 
 ## Known weak spots

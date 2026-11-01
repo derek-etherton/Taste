@@ -17,6 +17,12 @@ class Settings(BaseSettings):
 
     data_dir: Path = Field(ROOT / "data", validation_alias="TASTE_DATA_DIR")
 
+    # Genomes (taste/model/genomes.py): the one each domain starts with, and BookGenome
+    # release folders to offer besides data/genomes/book/*, as a JSON list of paths.
+    film_genome: str = Field("default", validation_alias="TASTE_FILM_GENOME")
+    book_genome: str = Field("default", validation_alias="TASTE_BOOK_GENOME")
+    book_genome_paths: list[Path] = Field([], validation_alias="TASTE_BOOK_GENOME_PATHS")
+
     # Local LLM server (Describe Me, Shelf scan)
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:8b"

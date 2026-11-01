@@ -3,13 +3,28 @@ import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClie
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Platform } from 'react-native';
 
-import { API_URL, api, errorMessage, type ItemCard, type Rating, type ShelfScan, unwrap } from './client';
+import { API_URL, api, errorMessage, type ItemCard, type ItemDetail, type Rating, type ShelfScan, unwrap } from './client';
 
 export const PAGE_SIZE = 25;
 export type Mode = 'for_you' | 'rate';
 
 export function useProfiles() {
   return useQuery({ queryKey: ['profiles'], queryFn: () => unwrap(api.GET('/profiles')) });
+}
+
+/** Each domain's genomes. Server-wide, so not under a user. */
+export function useGenomes() {
+  return useQuery({ queryKey: ['genomes'], queryFn: () => unwrap(api.GET('/genomes')) });
+}
+
+/** Switch a domain's genome on the server. Every catalogue-derived list changes, so refetch all. */
+export function useSwitchGenome() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ domain, genome }: { domain: string; genome: string }) =>
+      unwrap(api.PUT('/genomes/{domain}', { params: { path: { domain } }, body: { genome } })),
+    onSuccess: () => client.invalidateQueries(),
+  });
 }
 
 export function useSummary(user: string) {
@@ -42,6 +57,20 @@ export function useRated(user: string, domain: string, quality: number) {
   });
 }
 
+/** An item's page. The domain is the key's prefix ("book:115"). */
+export function useItem(user: string, key: string, quality: number) {
+  const domain = key.split(':')[0];
+  return useQuery({
+    queryKey: [user, 'item', key, quality],
+    queryFn: () =>
+      unwrap(
+        api.GET('/profiles/{user}/{domain}/items/{key}', {
+          params: { path: { user, domain, key }, query: { quality } },
+        }),
+      ),
+  });
+}
+
 export function useExplanation(user: string, domain: string, key: string | null, quality: number) {
   return useQuery({
     queryKey: [user, 'explanation', domain, key, quality],
@@ -65,6 +94,10 @@ function setRatedEverywhere(client: ReturnType<typeof useQueryClient>, user: str
       return { ...d, pages: d.pages.map((p) => ({ ...p, items: p.items.map(patch) })) };
     }
     if (Array.isArray(data)) return (data as ItemCard[]).map((c) => (c?.key ? patch(c) : c));
+    if ('card' in data && 'related' in data) {
+      const d = data as ItemDetail;
+      return { ...d, card: patch(d.card), related: d.related.map(patch) };
+    }
     if ('books' in data) {
       const s = data as ShelfScan;
       return { ...s, books: (s.books ?? []).map(patch) };

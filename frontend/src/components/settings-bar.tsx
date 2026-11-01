@@ -1,9 +1,9 @@
-/** Profile and quality-weight choices, shown at the top of each screen (the PoC's sidebar). */
+/** Profile, quality-weight and book-genome choices, shown at the top of each screen (the PoC's sidebar). */
 import Slider from '@react-native-community/slider';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useProfiles } from '@/api/hooks';
+import { useGenomes, useProfiles, useSwitchGenome } from '@/api/hooks';
 import { ThemedText } from '@/components/themed-text';
 import { ACCENT, Chips } from '@/components/kit';
 import { Spacing } from '@/constants/theme';
@@ -21,11 +21,34 @@ export function SettingsBar({ showQuality = true }: { showQuality?: boolean }) {
         </ThemedText>
         <Chips options={(profiles.data ?? [user]).map((p) => ({ value: p, label: p }))} value={user} onChange={setUser} />
       </View>
+      <GenomePicker domain="book" label="Book genome" />
       {showQuality && (
         <View style={styles.row}>
           <QualitySlider value={quality} onChange={setQuality} />
         </View>
       )}
+    </View>
+  );
+}
+
+/** Which genome a domain's catalogue is built from. Server-wide (a testing switch); hidden with one option. */
+function GenomePicker({ domain, label }: { domain: string; label: string }) {
+  const genomes = useGenomes();
+  const switchGenome = useSwitchGenome();
+  const g = genomes.data?.find((x) => x.domain === domain);
+  if (!g || g.options.length < 2) return null;
+  const linked = g.linked == null ? '' : `, ${g.linked} linked`;
+  return (
+    <View style={styles.row}>
+      <ThemedText type="small" themeColor="textSecondary" style={styles.label}>
+        {label}: {switchGenome.isPending ? 'switching…' : `${g.items} books${linked}`}
+        {switchGenome.error ? ` (${switchGenome.error.message})` : ''}
+      </ThemedText>
+      <Chips
+        options={g.options.map((o) => ({ value: o.name, label: o.name }))}
+        value={switchGenome.isPending ? switchGenome.variables.genome : g.active}
+        onChange={(genome) => genome !== g.active && !switchGenome.isPending && switchGenome.mutate({ domain, genome })}
+      />
     </View>
   );
 }

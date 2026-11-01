@@ -1,10 +1,12 @@
-/** One film or book: title, details and reasons, its percentile (tap for why), and 👍 😐 👎. */
+/** One film or book: title, details and reasons (tap for its page), its score (tap for why), and 👍 😐 👎. */
+import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { ItemCard, Rating } from '@/api/client';
 import { useRate } from '@/api/hooks';
 import { ThemedText } from '@/components/themed-text';
 import { ACCENT } from '@/components/kit';
+import { signed } from '@/components/tag-charts';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
@@ -15,9 +17,8 @@ const BUTTONS: { value: Rating; icon: string; label: string }[] = [
   { value: -1, icon: '👎', label: 'Dislike' },
 ];
 
-function ordinal(n: number): string {
-  const suffix = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th';
-  return `${n}${suffix}`;
+export function openItem(key: string) {
+  router.push({ pathname: '/item/[key]', params: { key } });
 }
 
 export function RatingButtons({ item }: { item: ItemCard }) {
@@ -62,16 +63,19 @@ export function ItemRow({
   const theme = useTheme();
   const details = [
     item.location ? `📍 ${item.location}` : '',
+    item.similarity != null ? `similarity ${item.similarity.toFixed(2)}` : '',
     item.creator,
     item.genres.join(' · '),
-    item.more_in_series ? `+${item.more_in_series} more in ${item.series}` : '',
   ].filter(Boolean);
   const because = item.because
     .map((b) => (b.from_other_domain && source ? `${b.tag} (from ${source})` : b.tag))
     .join(', ');
   return (
     <View style={[styles.row, { borderBottomColor: theme.backgroundElement }]}>
-      <View style={styles.text}>
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => openItem(item.key)}
+        style={({ pressed }) => [styles.text, pressed && { opacity: 0.6 }]}>
         <ThemedText type="smallBold">
           {rank !== undefined ? `${rank}. ` : ''}
           {item.label}
@@ -86,14 +90,14 @@ export function ItemRow({
             because: {because}
           </ThemedText>
         ) : null}
-      </View>
+      </Pressable>
       <View style={styles.side}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Why this is recommended"
-          onPress={() => onExplain?.(item)}
+          onPress={() => (onExplain ? onExplain(item) : openItem(item.key))}
           style={({ pressed }) => [styles.pct, { backgroundColor: theme.backgroundElement }, pressed && { opacity: 0.6 }]}>
-          <ThemedText type="small">{ordinal(Math.round(item.percentile))} pct</ThemedText>
+          <ThemedText type="small">{signed(item.score)}</ThemedText>
         </Pressable>
         <RatingButtons item={item} />
       </View>

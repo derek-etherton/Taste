@@ -8,7 +8,7 @@ def cats() -> dict[str, Catalog]:
     missing = {"film", "book"} - set(available_domains())
     if missing:
         pytest.skip(f"run scripts/prepare_data.py for: {', '.join(sorted(missing))}")
-    return {d: Catalog(d) for d in ("film", "book")}
+    return {d: Catalog.load(d) for d in ("film", "book")}
 
 
 @pytest.fixture(scope="session")

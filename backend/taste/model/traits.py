@@ -33,10 +33,32 @@ TRAITS_FILE = DATA / "traits.json"
 SHARE = 0.5  # default: half of a typical item's taste variance is shared across domains
 
 
+def compose(spec: list[dict], domain: str, derived_from: dict[str, list[str]]) -> list[dict]:
+    """Re-key `domain`'s side of the trait spec to a tag set derived from the one the spec
+    uses: each new tag inherits the trait of a tag it was made from, preferring one whose
+    name matches its own; each trait goes to one tag at most. New tags with no source in
+    the spec stay specific to `domain`."""
+    by_source = {t[domain]: t for t in spec if domain in t}
+    choices = {tag: sorted((by_source[s] for s in sources if s in by_source),
+                           key=lambda t: tag not in t.values())  # stable: else in derived_from order
+               for tag, sources in derived_from.items()}
+    out, taken = [], set()
+    # Exact name matches claim their trait first, then the rest in tag order.
+    for tag in sorted(choices, key=lambda tag: not (choices[tag] and tag in choices[tag][0].values())):
+        trait = next((t for t in choices[tag] if id(t) not in taken), None)
+        if trait is not None:
+            taken.add(id(trait))
+            out.append({**trait, domain: tag})
+    return out
+
+
 class TraitSpace:
     def __init__(self, catalogs: dict[str, Catalog], path: Path = TRAITS_FILE):
         self.cats = catalogs
         spec = json.loads(path.read_text(encoding="utf-8"))["traits"]
+        for d, c in catalogs.items():  # genomes with their own tag set inherit their source tags' links
+            if c.derived_from is not None:
+                spec = compose(spec, d, c.derived_from)
         # Keep traits whose tag exists in every loaded domain the spec covers.
         spec = [t for t in spec if all(d not in t or t[d] in c.tags for d, c in catalogs.items())]
         self.domains = [d for d in catalogs if spec and all(d in t for t in spec)]
@@ -46,9 +68,8 @@ class TraitSpace:
             cat = catalogs[d]
             index = {tag: j for j, tag in enumerate(cat.tags)}
             cols = np.array([index[t[d]] for t in spec])
-            w = cat.items["n_ratings"].to_numpy(dtype=np.float64)
             # Columns are already centred on the weighted mean, so this is the weighted std.
-            var = np.average(cat.relevance[:, cols].astype(np.float64) ** 2, axis=0, weights=w)
+            var = np.average(cat.relevance[:, cols].astype(np.float64) ** 2, axis=0, weights=cat.weights)
             self.cols[d], spread[d] = cols, np.sqrt(np.maximum(var, 1e-12))
         unit = np.exp(np.mean([np.log(s) for s in spread.values()], axis=0)) if spread else 1.0
         self.scale = {d: s / unit for d, s in spread.items()}  # features = relevance / scale

@@ -30,7 +30,8 @@ def chat(messages):
 
 @pytest.fixture(scope="module")
 def engine(tmp_path_factory, cats):  # cats: skips the module if the data isn't prepared
-    return Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), reader=reader, chat=chat)
+    return Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), reader=reader, chat=chat,
+                  genome={"film": "default", "book": "default"})  # whatever TASTE_*_GENOME says
 
 
 @pytest.fixture
@@ -86,10 +87,12 @@ def test_search_rate_mode_and_paging(client):
     assert len(p1["items"]) == 5 and not {c["key"] for c in p1["items"]} & {c["key"] for c in p2["items"]}
 
 
-def test_series_collapse(client):
-    items = client.get("/profiles/main/book/items", params={"q": "hunger games"}).json()["items"]
-    hunger = [c for c in items if c["series"] == "The Hunger Games"]
-    assert len(hunger) == 1 and hunger[0]["more_in_series"] >= 2
+def test_series_volumes_listed_separately(client):
+    items = client.get("/profiles/main/book/items", params={"page_size": 100}).json()["items"]
+    scores = [c["score"] for c in items]
+    assert scores == sorted(scores, reverse=True)  # in score order, series and all
+    hunger = client.get("/profiles/main/book/items", params={"q": "hunger games"}).json()["items"]
+    assert len([c for c in hunger if c["series"] == "The Hunger Games"]) >= 3
 
 
 def test_explanation(client, cats):
@@ -97,6 +100,24 @@ def test_explanation(client, cats):
     client.put(f"/profiles/main/ratings/{find(cats['film'], 'Halloween')}", json={"value": 1})
     ex = client.get(f"/profiles/main/film/items/{key}/explanation").json()
     assert ex["key"] == key and 0 <= ex["percentile"] <= 100 and ex["pulling_up"]
+    cards = client.get("/profiles/main/film/items", params={"page_size": 10}).json()["items"]
+    scores = [c["score"] for c in cards]
+    assert scores == sorted(scores, reverse=True) and scores[0] > 0  # For you: best predicted rating first
+
+
+def test_item_page(client, cats):
+    key = find(cats["book"], "Harry Potter and the Sorcerer's Stone")
+    page = client.get(f"/profiles/main/book/items/{key}").json()
+    assert page["card"]["key"] == key and page["explanation"]["key"] == key
+    tags = page["distinctive"]
+    assert "wizards" in {t["tag"] for t in tags} and all(t["score"] > t["average"] for t in tags)
+    related = page["related"]
+    assert len(related) == 10 and key not in {c["key"] for c in related}
+    sims = [c["similarity"] for c in related]
+    assert sims == sorted(sims, reverse=True) and 0 < sims[-1] <= sims[0] < 1  # most similar first
+    assert all(c["key"].startswith("book:") for c in related)
+    assert any(c["series"] == "Harry Potter" for c in related)  # its own series counts like any other book
+    assert client.get("/profiles/main/book/items/book:0").status_code == 404
     assert client.get("/profiles/main/film/items/film:0/explanation").status_code == 404
 
 

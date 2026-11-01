@@ -12,7 +12,7 @@ from taste.model.shelf import match_spines, read_spines
 
 
 def main(paths: list[str]) -> None:
-    cat = Catalog("book")
+    cat = Catalog.load("book")
     for path in paths:
         start = time.perf_counter()
         spines = read_spines(Path(path).read_bytes())

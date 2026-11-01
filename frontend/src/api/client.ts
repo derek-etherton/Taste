@@ -16,6 +16,9 @@ export const api = createClient<paths>({ baseUrl: API_URL });
 type Schemas = components['schemas'];
 export type ItemCard = Schemas['ItemCard'];
 export type ItemPage = Schemas['ItemPage'];
+export type ItemDetail = Schemas['ItemDetail'];
+export type TagStrength = Schemas['TagStrength'];
+export type TagContribution = Schemas['TagContribution'];
 export type Explanation = Schemas['Explanation'];
 export type Profile = Schemas['Profile'];
 export type Claims = Schemas['Claims'];
@@ -23,6 +26,7 @@ export type Claim = Schemas['Claim'];
 export type Description = Schemas['Description'];
 export type ShelfScan = Schemas['ShelfScan'];
 export type DomainSummary = Schemas['DomainSummary'];
+export type Genomes = Schemas['Genomes'];
 export type Rating = -1 | 0 | 1;
 
 /** The message to show for a failed request: FastAPI's `detail`, or the HTTP status. */

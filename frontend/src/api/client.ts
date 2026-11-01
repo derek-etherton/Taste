@@ -27,6 +27,7 @@ export type Description = Schemas['Description'];
 export type ShelfScan = Schemas['ShelfScan'];
 export type DomainSummary = Schemas['DomainSummary'];
 export type Genomes = Schemas['Genomes'];
+export type BookInfo = Schemas['BookInfo'];
 export type Rating = -1 | 0 | 1;
 
 /** The message to show for a failed request: FastAPI's `detail`, or the HTTP status. */

@@ -53,6 +53,7 @@ class ItemCard(BaseModel):
     location: str | None = None  # shelf scan only: roughly where it is on the shelf
     similarity: float | None = None  # item pages' related items only: to the page's item, -1 to 1
     tag_match: float | None = None  # lists filtered by tags only: how strongly it has them, 0 to 1
+    cover_url: str | None = None  # books with an Open Library cover
 
 
 class ItemPage(BaseModel):
@@ -105,12 +106,42 @@ class TagStrength(BaseModel):
     average: float  # the catalogue's average on the tag (weighted like the centring)
 
 
+class Author(BaseModel):
+    name: str
+    birth: str | None  # as Open Library has it: "3 January 1892", "1892", ...
+    death: str | None
+
+
+class Link(BaseModel):
+    title: str
+    url: str
+
+
+class BookInfo(BaseModel):
+    """What Open Library knows about a book (see scripts/openlibrary.py)."""
+    ol_work: str  # e.g. "OL27448W"
+    url: str  # its Open Library page
+    cover_url: str | None
+    first_published: int | None  # earliest edition's year
+    pages: int | None  # typical length across editions
+    original_language: str | None  # MARC code, e.g. "eng", "fre", "rus"
+    description: str | None
+    first_sentence: str | None
+    subjects: list[str]
+    places: list[str]
+    people: list[str]  # characters, or the real people a book is about
+    times: list[str]
+    authors: list[Author]
+    links: list[Link]  # e.g. Wikipedia
+
+
 class ItemDetail(BaseModel):
     """One item's page: its card, what sets it apart, why it scores what it does, and similar items."""
     card: ItemCard
     distinctive: list[TagStrength]  # the tags it has most above average, strongest first
     explanation: Explanation
     related: list[ItemCard]  # most similar items first, each with its similarity
+    book: BookInfo | None = None  # books matched to Open Library only
 
 
 class DomainSummary(BaseModel):

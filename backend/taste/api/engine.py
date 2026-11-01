@@ -14,6 +14,7 @@ import numpy as np
 
 from taste.api import schemas
 from taste.model import TRAITS_FILE, Catalog, Genome, TraitSpace, UserModel, available_domains, genomes
+from taste.model import openlibrary
 from taste.model.genomes import load as load_genome
 from taste.model.describe import default_chat
 from taste.model.shelf import Spine, location, match_spines, ollama_vision, rank_matches, read_spines
@@ -122,7 +123,7 @@ class Engine:
             score=round(ex.score, 3), percentile=round(ex.percentile, 1), rated=ex.rated,
             because=[schemas.Because(tag=t, from_other_domain=t in carried) for t, _ in ex.for_tags[:3]]
             if len(model.rows) or model.prior.any() else [],
-            location=where,
+            location=where, cover_url=openlibrary.cover(cat.items, i),
         )
 
     def cards(self, model: UserModel, rows, quality: float, **kwargs) -> list[schemas.ItemCard]:

@@ -18,6 +18,8 @@ cp .env.example .env                                       # then fill in the so
 cd backend
 ../.venv/Scripts/python scripts/prepare_data.py film       # one-off, writes data/film/
 ../.venv/Scripts/python scripts/prepare_data.py book       # one-off, writes data/book/ and data/traits.json
+../.venv/Scripts/python -m pip install -e ".[data]"        # optional, then: Open Library metadata (see below)
+../.venv/Scripts/python scripts/openlibrary.py
 ../.venv/Scripts/python scripts/seed_profiles.py           # optional: normie and romantic test profiles
 ../.venv/Scripts/uvicorn taste.api.app:app --reload        # the API; docs at http://localhost:8000/docs
 ../.venv/Scripts/python -m pytest                          # tests
@@ -56,7 +58,7 @@ Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the *
 | `GET /genomes`, `PUT /genomes/{domain}` | each domain's genomes and the active one; switch (`{"genome": "<name>"}`, server-wide) |
 | `GET /domains/{domain}/tags` | the active genome's tags, to filter by |
 | `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=&tags=` | a page of item cards; with `tags` (repeatable), sorted by `tag_match` × the item's percentile in the mode's own order (has the tags *and* is high on your list) |
-| `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items |
+| `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items, and for books what Open Library knows (`book`) |
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
 | `GET …/profile` | shared traits and each domain's own taste, with evidence |
@@ -73,6 +75,7 @@ taste/model/      calculations: no UI, no storage
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
   genomes.py      which genomes each domain has (default + data/genomes/<domain>/*) and loading one
   bookgenome.py   connector for BookGenome releases: links books to the default catalogue
+  openlibrary.py  joins data/book/openlibrary.csv onto the books when a catalogue is read
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
                   ranking, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
@@ -84,6 +87,7 @@ taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), routes
 taste/settings.py settings from the environment / .env
 scripts/
   prepare_data.py     prepare_data.py <domain>
+  openlibrary.py      refresh the books' Open Library metadata from the newest monthly dump
   seed_profiles.py    test profiles (normie, romantic) built from lists of titles
   export_openapi.py   the API spec, for the frontend
   scan_photo.py       run Shelf scan on photos from the command line
@@ -99,7 +103,7 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 
 | File | Contents |
 |---|---|
-| `items.csv` | `id, title, year, creator, genres, series, series_index, n_ratings, mean_rating, quality` (creator to series_index may be blank) |
+| `items.csv` | `id, title, year, creator, genres, series, series_index, n_ratings, mean_rating, quality` (creator to series_index may be blank); books add `goodreads_id` |
 | `tags.json` | tag names, in column order |
 | `relevance.npy` | items × tags, each score in [0, 1] |
 
@@ -113,6 +117,20 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 - BookGenome release folders used in place, listed in `TASTE_BOOK_GENOME_PATHS` (a JSON list of paths).
 
 `TASTE_BOOK_GENOME` / `TASTE_FILM_GENOME` pick the one the server starts with. A BookGenome release's books are linked to the default catalogue by title and author surname (subtitles, punctuation and "The" ignored), so they keep its IDs, and your ratings; the rest get `book:gb-<release id>` and average quality. Every release book counts equally when centring. Its tags inherit film links from the default tags they were derived from (`tags.csv`), preferring a same-named one; new tags stay book-only. Items missing from the active genome don't appear, but their ratings stay saved.
+
+### Open Library
+
+`backend/scripts/openlibrary.py` matches the books to [Open Library](https://openlibrary.org) works and keeps their metadata. It matches by the source's Goodreads ID (on Open Library editions), and otherwise by main title and author surname. Merged works are followed through Open Library's redirects. It writes three files to `data/book/`:
+
+| File | Contents |
+|---|---|
+| `openlibrary.duckdb` | our own copy of everything about the matched books: works, all their editions, authors, series, Open Library's ratings and reading log, for later features |
+| `openlibrary.csv` | what the app uses, one row per matched book: work ID, first-publication year (the earliest plausible edition year; the dataset's year is often a reprint's), series, description, first sentence, subjects, places, people, times, authors with dates, pages, original language, cover, ISBN, links, and Open Library's own rating and reader counts (stored, not yet used in scoring) |
+| `openlibrary.json` | which dump it was built from, and match counts |
+
+When a catalogue is read, the first-publication year replaces `year`, and Open Library's series fills in books whose title doesn't name one. The item page shows the rest.
+
+Open Library publishes full dumps monthly, about two days after month end (archive.org collection `ol_exports`). The script only downloads when a newer dump is out, so it is safe to schedule weekly, e.g. with Windows Task Scheduler running `.venv/Scripts/python scripts/openlibrary.py` from `backend/`, or cron. Restart the API afterwards. A refresh needs about 20 GB of disk while it runs (the works, editions and authors dumps), deleted afterwards unless `--keep-raw`. `--force` rebuilds from the same dump, and `--dump YYYY-MM-DD` picks one. Set `TASTE_OPENLIBRARY_CONTACT` to put a contact in the User-Agent, as Open Library asks. On licensing, Open Library says the Internet Archive asserts no new copyright over the database. It doesn't name a licence.
 
 ## How it works (short version)
 

@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     taste_film_url: str | None = None
     taste_book_url: str | None = None
 
+    # scripts/openlibrary.py: a contact for the User-Agent, as Open Library asks of API users
+    openlibrary_contact: str | None = Field(None, validation_alias="TASTE_OPENLIBRARY_CONTACT")
+
 
 @lru_cache
 def get_settings() -> Settings:

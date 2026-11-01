@@ -102,16 +102,18 @@ def read_release(path: Path, base: pd.DataFrame | None = None) -> Release:
         raise ValueError(f"{path}: scores.csv has blank scores")
 
     rows = link(books, base) if base is not None and len(base) else [None] * len(books)
+    extra = [c for c in base.columns if c not in COLUMNS] if base is not None else []  # e.g. Open Library's
+    columns = COLUMNS + extra
     items = []
     for (_, b), r in zip(books.iterrows(), rows):
         if r is None:  # not in the default catalogue: nobody's rated it, so average quality
             items.append({"id": f"gb-{b['book']}", "title": b["title"], "year": np.nan, "creator": b["author"],
                           "genres": "", "series": "", "series_index": "",
-                          "n_ratings": 0, "mean_rating": np.nan, "quality": 0.0})
+                          "n_ratings": 0, "mean_rating": np.nan, "quality": 0.0} | dict.fromkeys(extra, ""))
         else:
-            items.append(base.iloc[r].reindex(COLUMNS, fill_value="").to_dict())
+            items.append(base.iloc[r].reindex(columns, fill_value="").to_dict())
     return Release(
         name=path.name, description=meta.get("description", ""),
-        items=pd.DataFrame(items, columns=COLUMNS), tags=tags, relevance=np.clip(relevance, 0, 1),
+        items=pd.DataFrame(items, columns=columns), tags=tags, relevance=np.clip(relevance, 0, 1),
         derived_from=derived, linked=sum(r is not None for r in rows),
     )

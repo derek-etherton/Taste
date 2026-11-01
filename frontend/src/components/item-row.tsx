@@ -1,4 +1,6 @@
-/** One film or book: title, details and reasons (tap for its page), its score (tap for why), and 👍 😐 👎. */
+/** One film or book: cover (books), title, details and reasons (tap for its page), its score (tap for why),
+ * and 👍 😐 👎. */
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -71,8 +73,16 @@ export function ItemRow({
   const because = item.because
     .map((b) => (b.from_other_domain && source ? `${b.tag} (from ${source})` : b.tag))
     .join(', ');
+  const book = item.key.startsWith('book:');
   return (
     <View style={[styles.row, { borderBottomColor: theme.backgroundElement }]}>
+      {book && (
+        <Pressable onPress={() => openItem(item.key)} accessibilityElementsHidden importantForAccessibility="no">
+          <View style={[styles.cover, { backgroundColor: theme.backgroundElement }]}>
+            {item.cover_url && <Image source={{ uri: item.cover_url }} style={styles.cover} contentFit="cover" transition={150} />}
+          </View>
+        </Pressable>
+      )}
       <Pressable
         accessibilityRole="link"
         onPress={() => openItem(item.key)}
@@ -114,6 +124,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     alignItems: 'center',
   },
+  cover: { width: 44, height: 66, borderRadius: 3, overflow: 'hidden' }, // a placeholder when there's none, so titles line up
   text: { flex: 1, gap: 2 },
   because: { fontStyle: 'italic' },
   side: { alignItems: 'flex-end', gap: Spacing.two },

@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { useItem } from '@/api/hooks';
+import { BookAbout, BookCover, bookFacts } from '@/components/book-info';
 import { ItemRow, RatingButtons } from '@/components/item-row';
 import { Loading, Note, Screen } from '@/components/kit';
 import { DistinctiveTags, ScoreBreakdown, signed } from '@/components/tag-charts';
@@ -40,6 +41,7 @@ export default function ItemPage() {
   const card = d?.card;
   const details = card ? [card.creator, card.genres.join(' · ')].filter(Boolean) : [];
   const other = domain === 'book' ? 'films' : 'books';
+  const book = d?.book;
 
   return (
     <Screen>
@@ -53,18 +55,26 @@ export default function ItemPage() {
         {item.isError && <Note tone="error">{item.error.message}</Note>}
         {card && ex && d && (
           <>
-            <View style={styles.head}>
-              <ThemedText type="subtitle">{card.label}</ThemedText>
-              {details.map((line) => (
-                <ThemedText key={line} themeColor="textSecondary">
-                  {line}
-                </ThemedText>
-              ))}
-              {card.series && (
-                <ThemedText type="small" themeColor="textSecondary">
-                  {card.series}
-                </ThemedText>
-              )}
+            <View style={styles.headRow}>
+              {book && <BookCover book={book} />}
+              <View style={styles.head}>
+                <ThemedText type="subtitle">{card.label}</ThemedText>
+                {details.map((line) => (
+                  <ThemedText key={line} themeColor="textSecondary">
+                    {line}
+                  </ThemedText>
+                ))}
+                {card.series && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {card.series}
+                  </ThemedText>
+                )}
+                {book && bookFacts(book) && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {bookFacts(book)}
+                  </ThemedText>
+                )}
+              </View>
             </View>
 
             <View style={[styles.score, { backgroundColor: theme.backgroundElement }]}>
@@ -86,6 +96,12 @@ export default function ItemPage() {
                 {signed(ex.quality_part, 3)} from general quality · {signed(ex.transferred_part, 3)} from your {other}
               </ThemedText>
             </View>
+
+            {book && (
+              <Section title="About">
+                <BookAbout book={book} />
+              </Section>
+            )}
 
             <Section title="What sets it apart">
               <DistinctiveTags tags={d.distinctive} noun={noun} />
@@ -123,7 +139,8 @@ export default function ItemPage() {
 const styles = StyleSheet.create({
   page: { padding: Spacing.three, paddingBottom: BottomTabInset + Spacing.six, gap: Spacing.four },
   back: { alignSelf: 'flex-start', paddingVertical: Spacing.one },
-  head: { gap: Spacing.one },
+  headRow: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
+  head: { flex: 1, gap: Spacing.one },
   score: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.two },
   scoreTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.three, flexWrap: 'wrap' },
   scoreValue: { fontVariant: ['tabular-nums'] },

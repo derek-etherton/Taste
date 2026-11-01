@@ -15,6 +15,7 @@ from sources.common import DATA, Source, quality, write_domain
 URL_ENV = "TASTE_BOOK_URL"
 SCORES = "scores/glmer.csv"  # same algorithm family as the film relevance scores, for comparable scales
 # Titles carry their series: "Morning Star (Red Rising, #3)", "X (Harry Bosch, #3; Bosch Universe, #3)".
+GOODREADS = r"/book/show/(\d+)"  # https://www.goodreads.com/book/show/2767052-the-hunger-games
 SERIES = re.compile(r"\((?P<series>[^()#;]+?),\s*#(?P<index>\d+(?:\.\d+)?)(?P<range>-)?[^()]*\)\s*$")
 
 
@@ -37,7 +38,8 @@ def build(src: Source) -> None:
     stats = ratings.groupby("item_id")["rating"].agg(n_ratings="count", mean_rating="mean")
 
     meta = pd.read_json(src.open("raw/metadata.json"), lines=True).set_index("item_id")
-    items = meta.loc[relevance.index, ["title", "year", "authors"]].join(stats)
+    items = meta.loc[relevance.index, ["title", "year", "authors", "url"]].join(stats)
+    items["goodreads_id"] = items.pop("url").str.extract(GOODREADS, expand=False).fillna("")  # for Open Library
     items["creator"] = items.pop("authors").str.replace(r"\s+", " ", regex=True).str.strip()
     items["year"] = pd.to_numeric(items["year"], errors="coerce").where(lambda y: y > 0).astype("Int64")
     items[["n_ratings", "mean_rating"]] = items[["n_ratings", "mean_rating"]].fillna(
@@ -45,7 +47,7 @@ def build(src: Source) -> None:
     items[["series", "series_index"]] = series(items["title"])
     items["quality"] = quality(items["n_ratings"], items["mean_rating"], ratings["rating"].mean())
     items = items.reset_index().rename(columns={"item_id": "id"})
-    write_domain("book", items, tags, relevance.to_numpy(dtype=np.float32))
+    write_domain("book", items, tags, relevance.to_numpy(dtype=np.float32), extra=["goodreads_id"])
 
     matching = pd.read_csv(src.open("matching.csv")).dropna()
     traits = [{"film": f, "book": b} for f, b in zip(matching["movie_tag"], matching["book_tag"])]

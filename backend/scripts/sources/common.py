@@ -45,7 +45,9 @@ def quality(n_ratings: pd.Series, mean_rating: pd.Series, global_mean: float) ->
     return (shrunk - shrunk.mean()) / shrunk.std()
 
 
-def write_domain(domain: str, items: pd.DataFrame, tags: list[str], relevance: np.ndarray) -> None:
+def write_domain(domain: str, items: pd.DataFrame, tags: list[str], relevance: np.ndarray,
+                 extra: list[str] = ()) -> None:
+    """`extra`: columns a domain adds after the common ones, e.g. books' goodreads_id."""
     assert len(items) == relevance.shape[0] and len(tags) == relevance.shape[1]
     out = DATA / domain
     out.mkdir(parents=True, exist_ok=True)
@@ -53,7 +55,7 @@ def write_domain(domain: str, items: pd.DataFrame, tags: list[str], relevance: n
     for col, empty in [("creator", ""), ("genres", ""), ("series", ""), ("series_index", None)]:
         if col not in items:
             items[col] = empty
-    items[COLUMNS].to_csv(out / "items.csv", index=False)
+    items[COLUMNS + list(extra)].to_csv(out / "items.csv", index=False)
     (out / "tags.json").write_text(json.dumps(tags), encoding="utf-8")
     np.save(out / "relevance.npy", relevance.astype(np.float32))
     print(f"Wrote {relevance.shape[0]} {domain}s x {relevance.shape[1]} tags to {out}")

@@ -336,6 +336,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Author */
+        Author: {
+            /** Name */
+            name: string;
+            /** Birth */
+            birth: string | null;
+            /** Death */
+            death: string | null;
+        };
         /** Because */
         Because: {
             /** Tag */
@@ -347,6 +356,40 @@ export interface components {
         Body_start_scan_profiles__user__shelf_scans_post: {
             /** Photo */
             photo: string;
+        };
+        /**
+         * BookInfo
+         * @description What Open Library knows about a book (see scripts/openlibrary.py).
+         */
+        BookInfo: {
+            /** Ol Work */
+            ol_work: string;
+            /** Url */
+            url: string;
+            /** Cover Url */
+            cover_url: string | null;
+            /** First Published */
+            first_published: number | null;
+            /** Pages */
+            pages: number | null;
+            /** Original Language */
+            original_language: string | null;
+            /** Description */
+            description: string | null;
+            /** First Sentence */
+            first_sentence: string | null;
+            /** Subjects */
+            subjects: string[];
+            /** Places */
+            places: string[];
+            /** People */
+            people: string[];
+            /** Times */
+            times: string[];
+            /** Authors */
+            authors: components["schemas"]["Author"][];
+            /** Links */
+            links: components["schemas"]["Link"][];
         };
         /** Claim */
         Claim: {
@@ -511,6 +554,8 @@ export interface components {
             similarity?: number | null;
             /** Tag Match */
             tag_match?: number | null;
+            /** Cover Url */
+            cover_url?: string | null;
         };
         /**
          * ItemDetail
@@ -523,6 +568,7 @@ export interface components {
             explanation: components["schemas"]["Explanation"];
             /** Related */
             related: components["schemas"]["ItemCard"][];
+            book?: components["schemas"]["BookInfo"] | null;
         };
         /** ItemPage */
         ItemPage: {
@@ -536,6 +582,13 @@ export interface components {
             page_size: number;
             /** Source */
             source: string;
+        };
+        /** Link */
+        Link: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** Profile */
         Profile: {

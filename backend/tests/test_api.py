@@ -204,3 +204,17 @@ def test_tag_filter(client, cats):
     assert page["total"] > 1000  # it orders the list, it doesn't shrink it
     assert client.get("/profiles/main/book/items").json()["items"][0]["tag_match"] is None
     assert client.get("/profiles/main/book/items", params={"tags": ["nope"]}).status_code == 422
+
+
+def test_item_page_book_info(client, cats):
+    hobbit = client.get(f"/profiles/main/book/items/{find(cats['book'], 'The Hobbit')}").json()
+    if "ol_work" not in cats["book"].items:
+        assert hobbit["book"] is None  # scripts/openlibrary.py hasn't been run
+        return
+    book = hobbit["book"]
+    assert book["first_published"] == 1937 and hobbit["card"]["year"] == 1937 and "Tolkien" in book["authors"][0]["name"]
+    assert book["url"].startswith("https://openlibrary.org/works/") and book["subjects"]
+    assert hobbit["card"]["cover_url"] == book["cover_url"]  # lists show the cover too
+    page = client.get("/profiles/main/book/items", params={"page_size": 50}).json()["items"]
+    assert sum(bool(c["cover_url"]) for c in page) > 30  # most: about 90% of books have one
+    assert client.get(f"/profiles/main/film/items/{find(cats['film'], 'Halloween')}").json()["book"] is None

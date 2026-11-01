@@ -17,6 +17,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["httpx", "pytest"]
+data = ["duckdb"]  # scripts/openlibrary.py
 
 [build-system]
 requires = ["setuptools>=64"]
@@ -27,3 +28,4 @@ include = ["taste*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["scripts"]  # tests import the source adapters too

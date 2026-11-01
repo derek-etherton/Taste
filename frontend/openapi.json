@@ -963,6 +963,43 @@
  },
  "components": {
   "schemas": {
+   "Author": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "birth": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Birth"
+     },
+     "death": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Death"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "birth",
+     "death"
+    ],
+    "title": "Author"
+   },
    "Because": {
     "properties": {
      "tag": {
@@ -994,6 +1031,145 @@
      "photo"
     ],
     "title": "Body_start_scan_profiles__user__shelf_scans_post"
+   },
+   "BookInfo": {
+    "properties": {
+     "ol_work": {
+      "type": "string",
+      "title": "Ol Work"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
+     },
+     "first_published": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Published"
+     },
+     "pages": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pages"
+     },
+     "original_language": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Original Language"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "first_sentence": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Sentence"
+     },
+     "subjects": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Subjects"
+     },
+     "places": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Places"
+     },
+     "people": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "People"
+     },
+     "times": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Times"
+     },
+     "authors": {
+      "items": {
+       "$ref": "#/components/schemas/Author"
+      },
+      "type": "array",
+      "title": "Authors"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/Link"
+      },
+      "type": "array",
+      "title": "Links"
+     }
+    },
+    "type": "object",
+    "required": [
+     "ol_work",
+     "url",
+     "cover_url",
+     "first_published",
+     "pages",
+     "original_language",
+     "description",
+     "first_sentence",
+     "subjects",
+     "places",
+     "people",
+     "times",
+     "authors",
+     "links"
+    ],
+    "title": "BookInfo",
+    "description": "What Open Library knows about a book (see scripts/openlibrary.py)."
    },
    "Claim": {
     "properties": {
@@ -1476,6 +1652,17 @@
        }
       ],
       "title": "Tag Match"
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
      }
     },
     "type": "object",
@@ -1515,6 +1702,16 @@
       },
       "type": "array",
       "title": "Related"
+     },
+     "book": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BookInfo"
+       },
+       {
+        "type": "null"
+       }
+      ]
      }
     },
     "type": "object",
@@ -1562,6 +1759,24 @@
      "source"
     ],
     "title": "ItemPage"
+   },
+   "Link": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "title",
+     "url"
+    ],
+    "title": "Link"
    },
    "Profile": {
     "properties": {

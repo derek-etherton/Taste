@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Reques
 from taste.api import schemas
 from taste.api.engine import Engine
 from taste.model.describe import taste_brief
+from taste.model import openlibrary
 from taste.model.llm import LLMError
 from taste.model.user_model import TagClaim, claims
 
@@ -142,6 +143,7 @@ def item(user: User, domain: str, key: str, e: E, quality: Quality = 0.1,
         explanation=explanation(user, domain, key, e, quality),
         related=[c.model_copy(update={"similarity": round(float(similarity[r]), 3)})
                  for c, r in zip(e.cards(model, similar, quality), similar)],
+        book=openlibrary.info(cat.items.iloc[i]),
     )
 
 

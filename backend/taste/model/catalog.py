@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from taste.model.openlibrary import enrich
 from taste.settings import get_settings
 
 DATA = get_settings().data_dir
@@ -118,4 +119,6 @@ class Catalog:
 
 
 def read_items(src: Path) -> pd.DataFrame:
-    return pd.read_csv(src / "items.csv", keep_default_na=False, na_values={"year": [""]})
+    """items.csv, with Open Library metadata joined on if the folder has it (see openlibrary.py)."""
+    return enrich(pd.read_csv(src / "items.csv", keep_default_na=False, na_values={"year": [""]},
+                              dtype={"goodreads_id": str}), src)

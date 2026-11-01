@@ -38,47 +38,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/genomes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Genomes
-         * @description Each domain's available genomes and the active one.
-         */
-        get: operations["list_genomes_genomes_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/genomes/{domain}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /**
-         * Switch Genome
-         * @description Rebuild a domain's catalogue from another genome, for every user (a testing switch).
-         *     Ratings stay saved; items the genome lacks don't appear until you switch back.
-         */
-        put: operations["switch_genome_genomes__domain__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/profiles": {
         parameters: {
             query?: never;
@@ -254,27 +213,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/description": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Description */
-        get: operations["get_description_profiles__user__description_get"];
-        put?: never;
-        /**
-         * New Description
-         * @description Write a new Describe Me (takes ~30 s on a local model) and save it.
-         */
-        post: operations["new_description_profiles__user__description_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/profiles/{user}/shelf-scans": {
         parameters: {
             query?: never;
@@ -409,15 +347,6 @@ export interface components {
             /** Push Back On */
             push_back_on: components["schemas"]["Claim"][];
         };
-        /** Description */
-        Description: {
-            /** Text */
-            text: string;
-            /** Created */
-            created: string;
-            /** Stale */
-            stale: boolean;
-        };
         /** Domain */
         Domain: {
             /** Id */
@@ -484,40 +413,6 @@ export interface components {
             pulling_up: components["schemas"]["TagContribution"][];
             /** Pushing Down */
             pushing_down: components["schemas"]["TagContribution"][];
-        };
-        /** GenomeIn */
-        GenomeIn: {
-            /** Genome */
-            genome: string;
-        };
-        /** GenomeOption */
-        GenomeOption: {
-            /** Name */
-            name: string;
-            /** Kind */
-            kind: string;
-            /** Description */
-            description: string;
-        };
-        /**
-         * Genomes
-         * @description A domain's genomes: which are available, and what the active one holds.
-         */
-        Genomes: {
-            /** Domain */
-            domain: string;
-            /** Active */
-            active: string;
-            /** Options */
-            options: components["schemas"]["GenomeOption"][];
-            /** Items */
-            items: number;
-            /** Tags */
-            tags: number;
-            /** Linked */
-            linked: number | null;
-            /** Traits */
-            traits: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -731,61 +626,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Domain"][];
-                };
-            };
-        };
-    };
-    list_genomes_genomes_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Genomes"][];
-                };
-            };
-        };
-    };
-    switch_genome_genomes__domain__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                domain: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GenomeIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Genomes"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -1106,68 +946,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Profile"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_description_profiles__user__description_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Description"] | null;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    new_description_profiles__user__description_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Description"];
                 };
             };
             /** @description Validation Error */

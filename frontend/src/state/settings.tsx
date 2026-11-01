@@ -1,22 +1,22 @@
-/** App-wide choices: which profile, which domain on Discover, and the weight on general quality. */
+/** App-wide choices: the weight on general quality (set on Profile). One profile and one domain
+ * for now: the API keeps users and domains, so bringing them back is a UI change. */
 import { createContext, type PropsWithChildren, useContext, useMemo, useState } from 'react';
 
 type Settings = {
   user: string;
-  setUser: (user: string) => void;
   domain: string;
-  setDomain: (domain: string) => void;
   quality: number;
   setQuality: (quality: number) => void;
 };
 
+const USER = 'main';
+const DOMAIN = 'book';
+
 const SettingsContext = createContext<Settings | null>(null);
 
 export function SettingsProvider({ children }: PropsWithChildren) {
-  const [user, setUser] = useState('main');
-  const [domain, setDomain] = useState('film');
   const [quality, setQuality] = useState(0.1);
-  const value = useMemo(() => ({ user, setUser, domain, setDomain, quality, setQuality }), [user, domain, quality]);
+  const value = useMemo(() => ({ user: USER, domain: DOMAIN, quality, setQuality }), [quality]);
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }
 

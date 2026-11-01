@@ -7,9 +7,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Reques
 
 from taste.api import schemas
 from taste.api.engine import Engine
-from taste.model.describe import taste_brief
 from taste.model import openlibrary
-from taste.model.llm import LLMError
 from taste.model.user_model import TagClaim, claims
 
 router = APIRouter()
@@ -46,37 +44,6 @@ def health() -> dict:
 @router.get("/domains")
 def domains(e: E) -> list[schemas.Domain]:
     return [schemas.Domain(id=d, name=c.name, items=len(c), genome=c.genome) for d, c in e.cats.items()]
-
-
-# --- genomes ----------------------------------------------------------------------------------
-
-def genomes_out(e: Engine, domain: str) -> schemas.Genomes:
-    cat = catalog_or_404(e, domain)
-    traits = e.traits
-    return schemas.Genomes(
-        domain=domain, active=cat.genome, items=len(cat), tags=len(cat.tags), linked=cat.linked,
-        traits=len(traits) if traits and domain in traits.domains else 0,
-        options=[schemas.GenomeOption(name=g.name, kind=g.kind, description=g.description)
-                 for g in e.genomes(domain).values()],
-    )
-
-
-@router.get("/genomes")
-def list_genomes(e: E) -> list[schemas.Genomes]:
-    """Each domain's available genomes and the active one."""
-    return [genomes_out(e, d) for d in e.cats]
-
-
-@router.put("/genomes/{domain}")
-def switch_genome(domain: str, body: schemas.GenomeIn, e: E) -> schemas.Genomes:
-    """Rebuild a domain's catalogue from another genome, for every user (a testing switch).
-    Ratings stay saved; items the genome lacks don't appear until you switch back."""
-    catalog_or_404(e, domain)
-    try:
-        e.switch_genome(domain, body.genome)
-    except KeyError as err:
-        raise HTTPException(404, err.args[0])
-    return genomes_out(e, domain)
 
 
 @router.get("/profiles")
@@ -208,30 +175,6 @@ def profile(user: User, e: E) -> schemas.Profile:
         domains=[schemas.DomainProfile(domain=d, name=m.cat.name, rated=len(m.rows), confidence=m.confidence(),
                                        claims=to_claims(*m.profile())) for d, m in models.items()],
     )
-
-
-def description_out(d, ratings: dict[str, int]) -> schemas.Description:
-    return schemas.Description(text=d.text, created=d.created, stale=d.ratings != ratings)
-
-
-@router.get("/profiles/{user}/description")
-def get_description(user: User, e: E) -> schemas.Description | None:
-    d = e.store.description(user)
-    return description_out(d, e.store.ratings(user)) if d else None
-
-
-@router.post("/profiles/{user}/description")
-def new_description(user: User, e: E) -> schemas.Description:
-    """Write a new Describe Me (takes ~30 s on a local model) and save it."""
-    ratings = e.store.ratings(user)
-    if not ratings:
-        raise HTTPException(409, "Rate something first.")
-    from taste.model.describe import describe
-    try:
-        text = describe(taste_brief(e.models(ratings), e.traits, ratings), chat=e.chat)
-    except LLMError as err:
-        raise HTTPException(503, str(err))
-    return description_out(e.store.save_description(user, text, ratings), ratings)
 
 
 # --- shelf scan -------------------------------------------------------------------------------

@@ -28,25 +28,26 @@ cd ../frontend && npm install && npm run web               # the app in a browse
 
 After the one-off setup, `python dev.py` from the repo root starts both the API (port 8000, auto-reloading) and the web app (port 8081). Ctrl+C stops both.
 
-Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
+Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `TASTE_DOMAINS` (default `["book"]`), `TASTE_BOOK_GENOME` (default `truegenome`), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
+
+**Books only, for now.** The app and API serve books from the `truegenome` BookGenome release (`data/genomes/book/truegenome/`), for one profile (`main`). The film catalogue, taste carried over between films and books, other profiles and the genome switch are all still in the backend (and tested); `TASTE_DOMAINS=["film","book"]` brings films back to the API.
 
 `data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and the profiles in `data/users/<name>.json`, each with its ratings and latest Describe Me.
 
 ## Using the app
 
-Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the **Profile** choice (`main` is yours; others are for testing) and **Weight on general quality** (how much widely-liked items get a boost).
+Three tabs: **Discover**, **Shelf scan** and **Profile**.
 
-- **Discover.** Pick Films or Books, then:
-  - **For you:** unrated items ranked by how well they match you. The percentile chip opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain.
-  - **Rate films / Rate books:** see below.
-  - **Your ratings.** Search covers the whole catalogue. 👍 😐 👎 rate an item; tapping the same one again clears it.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
-- **Rate films / Rate books.** Every unrated item. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
-- **Profile.** Three views:
-  - **Shared traits:** taste that carries across domains.
-  - **Films only** and **Books only:** taste each domain adds on top.
+- **Discover:**
+  - **For you:** unrated books ranked by how well they match you. The score chip opens a breakdown: which tags push the book up or down, and how much comes from general quality. Tap a title for the book's page: cover, first-publication year, description, subjects, why it scores what it does, and similar books.
+  - **Rate books:** every unrated book. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
+  - **Your ratings.**
 
-  Every claim lists the rated items behind it. **Describe Me** asks a local [Ollama](https://ollama.com) model for a fun four-line "taste horoscope" built from your profile. By default it uses `qwen3:8b` at `http://localhost:11434`; set `OLLAMA_MODEL` / `OLLAMA_URL` in `.env` to change that.
+  Search covers the whole catalogue, and **Filter by tags** puts books that have the chosen tags *and* rank high for you first. 👍 😐 👎 rate a book; tapping the same one again clears it.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row and reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase). The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in your profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+- **Profile.**
+  - **Algorithm:** **Book rating contribution** is how much a book's ratings from other readers count towards its score (the API's `quality`, 0 to 1).
+  - **Taste:** what the model has learnt about your taste in books, with the rated books behind every claim.
 
 ## API
 
@@ -55,14 +56,12 @@ Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the *
 | | |
 |---|---|
 | `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
-| `GET /genomes`, `PUT /genomes/{domain}` | each domain's genomes and the active one; switch (`{"genome": "<name>"}`, server-wide) |
 | `GET /domains/{domain}/tags` | the active genome's tags, to filter by |
 | `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=&tags=` | a page of item cards; with `tags` (repeatable), sorted by `tag_match` × the item's percentile in the mode's own order (has the tags *and* is high on your list) |
 | `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items, and for books what Open Library knows (`book`) |
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
 | `GET …/profile` | shared traits and each domain's own taste, with evidence |
-| `GET` / `POST …/description` | the saved Describe Me / write a new one (~30 s locally) |
 | `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results |
 
 `backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`.
@@ -79,7 +78,7 @@ taste/model/      calculations: no UI, no storage
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
                   ranking, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
-  describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
+  describe.py     Describe Me (not in the API for now): profile -> text brief -> a taste horoscope from a local LLM
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
   llm.py          the local Ollama client both of those use
 taste/storage/    per-user ratings, Describe Me, last shelf scan: ProfileStore + JsonProfileStore
@@ -111,12 +110,12 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 
 ### Genomes
 
-`data/<domain>/` is a domain's `default` genome. Others can be switched to at runtime (the **Book genome** chips in the app, or `PUT /genomes/book`), to compare recommendations:
+`data/<domain>/` is a domain's `default` genome. `TASTE_<DOMAIN>_GENOME` picks the one the server uses (books: `truegenome`). The engine can also switch at runtime (`Engine.switch_genome`, not exposed by the API for now). Genomes it can use:
 
 - `data/genomes/<domain>/<name>/` in the common format, or for books a [BookGenome](../BookGenome) release folder;
 - BookGenome release folders used in place, listed in `TASTE_BOOK_GENOME_PATHS` (a JSON list of paths).
 
-`TASTE_BOOK_GENOME` / `TASTE_FILM_GENOME` pick the one the server starts with. A BookGenome release's books are linked to the default catalogue by title and author surname (subtitles, punctuation and "The" ignored), so they keep its IDs, and your ratings; the rest get `book:gb-<release id>` and average quality. Every release book counts equally when centring. Its tags inherit film links from the default tags they were derived from (`tags.csv`), preferring a same-named one; new tags stay book-only. Items missing from the active genome don't appear, but their ratings stay saved.
+A BookGenome release's books are linked to the default catalogue by title and author surname (subtitles, punctuation and "The" ignored), so they keep its IDs, and your ratings; the rest get `book:gb-<release id>` and average quality. Every release book counts equally when centring. Its tags inherit film links from the default tags they were derived from (`tags.csv`), preferring a same-named one; new tags stay book-only. Items missing from the active genome don't appear, but their ratings stay saved.
 
 ### Open Library
 

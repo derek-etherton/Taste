@@ -71,7 +71,9 @@ export function ExplanationSheet({
                   <View style={styles.metrics}>
                     <Metric label="Score" value={signed(ex.data.score)} />
                     <Metric label="…from quality" value={signed(ex.data.quality_part)} />
-                    <Metric label={`…from your ${source || 'other ratings'}`} value={signed(ex.data.transferred_part)} />
+                    {source ? (
+                      <Metric label={`…from your ${source}`} value={signed(ex.data.transferred_part)} />
+                    ) : null}
                   </View>
                   <View style={styles.lists}>
                     <TagList title="Pulling it up" tags={ex.data.pulling_up} />
@@ -79,7 +81,8 @@ export function ExplanationSheet({
                   </View>
                   <ThemedText type="small" themeColor="textSecondary">
                     Score: the rating the model expects from you, on your ratings&apos; scale: +1 like, 0 meh, −1
-                    dislike. Strong matches go past ±1. ↔ marks tags carried over from your ratings in another domain.
+                    dislike. Strong matches go past ±1.
+                    {source ? ` ↔ marks tags carried over from your ${source}.` : ''}
                   </ThemedText>
                 </>
               )}

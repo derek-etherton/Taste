@@ -1,4 +1,4 @@
-/** Discover: recommendations ("For you"), the most useful things to rate ("Rate"), and your ratings. */
+/** Discover: book recommendations ("For you"), the most useful books to rate ("Rate"), and your ratings. */
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, TextInput, View } from 'react-native';
 
@@ -6,8 +6,7 @@ import type { ItemCard } from '@/api/client';
 import { type Mode, useItems, useRated, useSummary } from '@/api/hooks';
 import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
-import { Chips, Loading, Note, Screen, TabStrip, listPadding, topInset } from '@/components/kit';
-import { SettingsBar } from '@/components/settings-bar';
+import { Chips, Loading, Note, Screen, listPadding } from '@/components/kit';
 import { TagFilter } from '@/components/tag-filter';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
@@ -26,20 +25,18 @@ function useDebounced<T>(value: T, ms = 250): T {
 }
 
 export default function Discover() {
-  const { user, domain, setDomain, quality } = useSettings();
+  const { user, domain, quality } = useSettings();
   const theme = useTheme();
   const summary = useSummary(user);
   const [view, setView] = useState<View_>('for_you');
   const [text, setText] = useState('');
   const q = useDebounced(text.trim());
   const [explaining, setExplaining] = useState<ItemCard | null>(null);
-  const [tagsByDomain, setTagsByDomain] = useState<Record<string, string[]>>({}); // films and books have different tags
-  const tags = tagsByDomain[domain] ?? [];
-  const setTags = (t: string[]) => setTagsByDomain((all) => ({ ...all, [domain]: t }));
+  const [tags, setTags] = useState<string[]>([]);
 
   const items = useItems(user, domain, view === 'rated' ? 'for_you' : view, q, quality, tags);
   const rated = useRated(user, domain, quality);
-  const name = summary.data?.find((d) => d.domain === domain)?.name ?? 'Films';
+  const name = 'Books';
   const thisDomain = summary.data?.find((d) => d.domain === domain);
 
   const pages = items.data?.pages;
@@ -53,7 +50,6 @@ export default function Discover() {
 
   const header = (
     <View style={styles.header}>
-      <SettingsBar />
       {thisDomain && (
         <ThemedText type="small" themeColor="textSecondary">
           {thisDomain.confidence}
@@ -91,13 +87,6 @@ export default function Discover() {
 
   return (
     <Screen>
-      <View style={styles.domains}>
-        <TabStrip
-          options={(summary.data ?? [{ domain: 'film', name: 'Films' }]).map((d) => ({ value: d.domain, label: d.name }))}
-          value={domain}
-          onChange={setDomain}
-        />
-      </View>
       <FlatList
         data={data}
         keyExtractor={(c) => c.key}
@@ -109,7 +98,7 @@ export default function Discover() {
         ListFooterComponent={items.isFetchingNextPage ? <Loading /> : undefined}
         onEndReached={() => view !== 'rated' && items.hasNextPage && !items.isFetchingNextPage && items.fetchNextPage()}
         onEndReachedThreshold={0.5}
-        contentContainerStyle={[listPadding, styles.list]}
+        contentContainerStyle={listPadding}
         keyboardShouldPersistTaps="handled"
       />
       <ExplanationSheet domain={domain} item={explaining} source={source} onClose={() => setExplaining(null)} />
@@ -118,9 +107,6 @@ export default function Discover() {
 }
 
 const styles = StyleSheet.create({
-  // The Films/Books tabs stay put under the app header; everything below them scrolls.
-  domains: { paddingTop: topInset, paddingHorizontal: Spacing.three },
-  list: { paddingTop: Spacing.two },
   header: { gap: Spacing.three, paddingBottom: Spacing.two },
   search: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two + 2, borderRadius: Spacing.three, fontSize: 16 },
 });

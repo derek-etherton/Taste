@@ -1,4 +1,4 @@
-"""The HTTP API, end to end in-process: a temporary profile store, stand-in vision model and chat."""
+"""The HTTP API, end to end in-process: a temporary profile store and a stand-in vision model."""
 
 import io
 import time
@@ -24,13 +24,10 @@ def reader(image, progress):
     return SHELF
 
 
-def chat(messages):
-    return "You're a hobbit with a library card."
-
-
 @pytest.fixture(scope="module")
 def engine(tmp_path_factory, cats):  # cats: skips the module if the data isn't prepared
-    return Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), reader=reader, chat=chat,
+    return Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), reader=reader,
+                  domains=["film", "book"],  # the app serves books only, but the film code stays tested
                   genome={"film": "default", "book": "default"})  # whatever TASTE_*_GENOME says
 
 
@@ -129,26 +126,6 @@ def test_profile(client, cats):
     assert p["domains"][0]["rated"] == 3 and p["domains"][0]["claims"]["respond_to"]
 
 
-def test_describe_me(client, engine, cats):
-    assert client.get("/profiles/main/description").json() is None
-    assert client.post("/profiles/main/description").status_code == 409  # nothing rated yet
-    client.put(f"/profiles/main/ratings/{find(cats['book'], 'The Hobbit')}", json={"value": 1})
-    d = client.post("/profiles/main/description").json()
-    assert d["text"] == "You're a hobbit with a library card." and not d["stale"]
-    client.put(f"/profiles/main/ratings/{find(cats['book'], 'Emma')}", json={"value": -1})
-    assert client.get("/profiles/main/description").json()["stale"]
-
-    def broken(messages):
-        raise LLMError("Couldn't reach Ollama")
-
-    engine.chat = broken
-    try:
-        r = client.post("/profiles/main/description")
-        assert r.status_code == 503 and "Ollama" in r.json()["detail"]
-    finally:
-        engine.chat = chat
-
-
 def poll(client, user="main"):
     for _ in range(100):
         scan = client.get(f"/profiles/{user}/shelf-scan").json()
@@ -218,3 +195,13 @@ def test_item_page_book_info(client, cats):
     page = client.get("/profiles/main/book/items", params={"page_size": 50}).json()["items"]
     assert sum(bool(c["cover_url"]) for c in page) > 30  # most: about 90% of books have one
     assert client.get(f"/profiles/main/film/items/{find(cats['film'], 'Halloween')}").json()["book"] is None
+
+
+def test_books_only_by_default(tmp_path, cats):
+    """The app serves books only, from TASTE_BOOK_GENOME (truegenome): no films, no genome switch."""
+    engine = Engine(store=JsonProfileStore(tmp_path), reader=reader, genome={"book": "default"})
+    c = TestClient(create_app(engine))
+    assert [d["id"] for d in c.get("/domains").json()] == ["book"]
+    assert c.get("/profiles/main/film/items").status_code == 404
+    assert c.get("/genomes").status_code == 404 and c.put("/genomes/book", json={"genome": "x"}).status_code in (404, 405)
+    assert c.get("/profiles/main/profile").json()["shared"] is None  # nothing carries over with one domain

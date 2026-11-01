@@ -9,7 +9,6 @@ import { scanImageUrl, useScan, useStartScan } from '@/api/hooks';
 import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
 import { ACCENT, Button, Loading, Note, Screen, listPadding } from '@/components/kit';
-import { SettingsBar } from '@/components/settings-bar';
 import { ThemedText } from '@/components/themed-text';
 import { Collapsible } from '@/components/ui/collapsible';
 import { Spacing } from '@/constants/theme';
@@ -49,7 +48,6 @@ export default function ShelfScan() {
 
   const header = (
     <View style={styles.header}>
-      <SettingsBar />
       <ThemedText type="small" themeColor="textSecondary">
         Snap or upload a photo of a bookshelf, at home or in a shop. We read the spines and sort the books we know by how
         much you&apos;d like them.

@@ -8,25 +8,6 @@ import { API_URL, api, errorMessage, type ItemCard, type ItemDetail, type Rating
 export const PAGE_SIZE = 25;
 export type Mode = 'for_you' | 'rate';
 
-export function useProfiles() {
-  return useQuery({ queryKey: ['profiles'], queryFn: () => unwrap(api.GET('/profiles')) });
-}
-
-/** Each domain's genomes. Server-wide, so not under a user. */
-export function useGenomes() {
-  return useQuery({ queryKey: ['genomes'], queryFn: () => unwrap(api.GET('/genomes')) });
-}
-
-/** Switch a domain's genome on the server. Every catalogue-derived list changes, so refetch all. */
-export function useSwitchGenome() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: ({ domain, genome }: { domain: string; genome: string }) =>
-      unwrap(api.PUT('/genomes/{domain}', { params: { path: { domain } }, body: { genome } })),
-    onSuccess: () => client.invalidateQueries(),
-  });
-}
-
 export function useSummary(user: string) {
   return useQuery({
     queryKey: [user, 'summary'],
@@ -132,21 +113,6 @@ export function useProfile(user: string) {
   return useQuery({
     queryKey: [user, 'profile'],
     queryFn: () => unwrap(api.GET('/profiles/{user}/profile', { params: { path: { user } } })),
-  });
-}
-
-export function useDescription(user: string) {
-  return useQuery({
-    queryKey: [user, 'description'],
-    queryFn: () => unwrap(api.GET('/profiles/{user}/description', { params: { path: { user } } })),
-  });
-}
-
-export function useDescribe(user: string) {
-  const client = useQueryClient();
-  return useMutation({
-    mutationFn: () => unwrap(api.POST('/profiles/{user}/description', { params: { path: { user } } })),
-    onSuccess: (d) => client.setQueryData([user, 'description'], d),
   });
 }
 

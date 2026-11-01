@@ -96,32 +96,30 @@ def release(tmp_path_factory) -> Path:
 @pytest.fixture(scope="module")
 def client(tmp_path_factory, cats, release):  # cats: skips the module if the data isn't prepared
     engine = Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), releases=[release],
-                    genome={"book": "default"})
+                    domains=["film", "book"], genome={"film": "default", "book": "default"})
     return TestClient(create_app(engine))
 
 
-def switch(client, genome: str) -> dict:
-    r = client.put("/genomes/book", json={"genome": genome})
-    assert r.status_code == 200, r.text
-    return r.json()
+def switch(client, genome: str):
+    """The genome switch isn't in the API for now; the engine still has it."""
+    return client.app.state.engine.switch_genome("book", genome)
 
 
 def test_list_and_switch(client, cats):
-    book = {g["domain"]: g for g in client.get("/genomes").json()}["book"]
-    assert book["active"] == "default" and book["linked"] is None
-    names = [o["name"] for o in book["options"]]  # plus whatever is in data/genomes/book/
+    engine = client.app.state.engine
+    names = list(engine.genomes("book"))  # plus whatever is in data/genomes/book/
     assert names[0] == "default" and "testgenome" in names
-    assert book["items"] == len(cats["book"]) and book["traits"] == 512
+    assert len(engine.cats["book"]) == len(cats["book"]) and len(engine.traits) == 512
 
-    out = switch(client, "testgenome")
-    assert (out["active"], out["items"], out["tags"], out["linked"]) == ("testgenome", 4, 5, 3)
+    cat = switch(client, "testgenome")
+    assert (cat.genome, len(cat), len(cat.tags), cat.linked) == ("testgenome", 4, 5, 3)
     assert {d["id"]: d["genome"] for d in client.get("/domains").json()}["book"] == "testgenome"
     titles = {c["title"] for c in client.get("/profiles/main/book/items").json()["items"]}
     assert "Queen Lucia" in titles and len(titles) == 4  # every release book, linked or not
     assert client.get("/profiles/main/film/items").status_code == 200  # films still work
 
-    assert client.put("/genomes/book", json={"genome": "nope"}).status_code == 404
-    assert client.put("/genomes/music", json={"genome": "default"}).status_code == 404
+    with pytest.raises(KeyError):
+        switch(client, "nope")
     switch(client, "default")
 
 
@@ -130,7 +128,7 @@ def test_derived_film_links(client):
     traits = client.app.state.engine.traits
     pairs = {(traits.names[i], traits.cats["book"].tags[c]) for i, c in enumerate(traits.cols["book"])}
     assert pairs == {("adventure", "adventure"), ("satire", "satire"), ("funny", "comic"), ("magic", "dragons and magic")}
-    assert {g["domain"]: g["traits"] for g in client.get("/genomes").json()} == {"film": 4, "book": 4}
+    assert len(traits) == 4
     switch(client, "default")
 
 

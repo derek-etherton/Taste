@@ -23,10 +23,8 @@ export type Explanation = Schemas['Explanation'];
 export type Profile = Schemas['Profile'];
 export type Claims = Schemas['Claims'];
 export type Claim = Schemas['Claim'];
-export type Description = Schemas['Description'];
 export type ShelfScan = Schemas['ShelfScan'];
 export type DomainSummary = Schemas['DomainSummary'];
-export type Genomes = Schemas['Genomes'];
 export type BookInfo = Schemas['BookInfo'];
 export type Rating = -1 | 0 | 1;
 

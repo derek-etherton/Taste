@@ -6,31 +6,10 @@ from pydantic import BaseModel, Field
 
 
 class Domain(BaseModel):
-    id: str  # "film", "book"
+    id: str  # "book" (and "film", with TASTE_DOMAINS)
     name: str  # "Films", "Books"
     items: int
     genome: str  # the active genome, e.g. "default"
-
-
-class GenomeOption(BaseModel):
-    name: str  # "default", or e.g. a BookGenome release's folder name
-    kind: str  # "common" or "bookgenome"
-    description: str
-
-
-class Genomes(BaseModel):
-    """A domain's genomes: which are available, and what the active one holds."""
-    domain: str
-    active: str
-    options: list[GenomeOption]
-    items: int  # in the active genome's catalogue
-    tags: int
-    linked: int | None  # items linked to the default genome's (so ratings carry over); None for the default
-    traits: int  # shared traits with other domains under the active genomes
-
-
-class GenomeIn(BaseModel):
-    genome: str
 
 
 class Because(BaseModel):
@@ -167,12 +146,6 @@ class RatingIn(BaseModel):
 
 class Ratings(BaseModel):
     ratings: dict[str, int]
-
-
-class Description(BaseModel):
-    text: str
-    created: str
-    stale: bool  # ratings have changed since it was written
 
 
 class Spine(BaseModel):

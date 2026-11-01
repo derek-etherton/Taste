@@ -14,7 +14,7 @@ from taste.settings import get_settings
 def create_app(engine: Engine | None = None) -> FastAPI:
     """The app; tests pass an engine with a temporary store and stand-in LLMs."""
     app = FastAPI(title="Taste", version="0.2.0",
-                  description="Person-centred film and book recommendations, Describe Me and Shelf scan.")
+                  description="Person-centred book recommendations and Shelf scan.")
     app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins,
                        allow_methods=["*"], allow_headers=["*"])
     app.state.engine = engine or Engine()

@@ -1,4 +1,4 @@
-/** One film or book: cover (books), title, details and reasons (tap for its page), its score (tap for why),
+/** One item (a book, for now): cover, title, details and reasons (tap for its page), its score (tap for why),
  * and 👍 😐 👎. */
 import { Image } from 'expo-image';
 import { router } from 'expo-router';

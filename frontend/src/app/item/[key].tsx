@@ -1,5 +1,5 @@
-/** One film or book: its details, its score for you, the tags that set it apart and drive the score,
- * and the most similar items in its domain. */
+/** One book: its details, its score for you, the tags that set it apart and drive the score, and the
+ * most similar books. */
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -13,7 +13,7 @@ import { BottomTabInset, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
-const NOUNS: Record<string, [string, string]> = { book: ['book', 'books'], film: ['film', 'films'] };
+const NOUNS: Record<string, [string, string]> = { book: ['book', 'books'] };
 
 function back() {
   if (router.canGoBack()) router.back();
@@ -40,7 +40,6 @@ export default function ItemPage() {
   const ex = d?.explanation;
   const card = d?.card;
   const details = card ? [card.creator, card.genres.join(' · ')].filter(Boolean) : [];
-  const other = domain === 'book' ? 'films' : 'books';
   const book = d?.book;
 
   return (
@@ -93,7 +92,8 @@ export default function ItemPage() {
                 Beats {Math.floor(card.percentile)}% of the {nouns} you haven&apos;t rated.
               </ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                {signed(ex.quality_part, 3)} from general quality · {signed(ex.transferred_part, 3)} from your {other}
+                {signed(ex.quality_part, 3)} from general quality
+                {ex.transferred_part ? ` · ${signed(ex.transferred_part, 3)} carried over from your other ratings` : ''}
               </ThemedText>
             </View>
 
@@ -108,7 +108,7 @@ export default function ItemPage() {
             </Section>
 
             <Section title={`Why it scores ${signed(card.score)} for you`}>
-              <ScoreBreakdown up={ex.pulling_up} down={ex.pushing_down} source={other} />
+              <ScoreBreakdown up={ex.pulling_up} down={ex.pushing_down} />
               <ThemedText type="small" themeColor="textSecondary">
                 {(() => {
                   const shown = [...ex.pulling_up, ...ex.pushing_down].reduce((s, t) => s + t.contribution, 0);
@@ -125,7 +125,7 @@ export default function ItemPage() {
               </ThemedText>
               <View>
                 {d.related.map((r) => (
-                  <ItemRow key={r.key} item={r} source={other} />
+                  <ItemRow key={r.key} item={r} />
                 ))}
               </View>
             </Section>

@@ -16,7 +16,6 @@ from taste.api import schemas
 from taste.model import TRAITS_FILE, Catalog, Genome, TraitSpace, UserModel, available_domains, genomes
 from taste.model import openlibrary
 from taste.model.genomes import load as load_genome
-from taste.model.describe import default_chat
 from taste.model.shelf import Spine, location, match_spines, ollama_vision, rank_matches, read_spines
 from taste.settings import get_settings
 from taste.storage import JsonProfileStore, ProfileStore
@@ -39,17 +38,20 @@ class Job:
 
 class Engine:
     def __init__(self, store: ProfileStore | None = None, reader: Reader = default_reader,
-                 chat: Callable[[list[dict]], str] = default_chat, cache_size: int = 32,
-                 genome: dict[str, str] | None = None, releases: list[Path] | None = None):
-        """`genome`: the genome each domain starts with (default: TASTE_<DOMAIN>_GENOME).
-        `releases`: BookGenome release folders to offer (default: TASTE_BOOK_GENOME_PATHS)."""
+                 cache_size: int = 32,
+                 genome: dict[str, str] | None = None, releases: list[Path] | None = None,
+                 domains: list[str] | None = None):
+        """`domains`: which to serve (default: TASTE_DOMAINS, books only). `genome`: the genome
+        each uses (default: TASTE_<DOMAIN>_GENOME). `releases`: BookGenome release folders to
+        offer (default: TASTE_BOOK_GENOME_PATHS)."""
         self.releases = releases
         settings = get_settings()
-        start = {d: (genome or {}).get(d) or getattr(settings, f"{d}_genome", "default") for d in available_domains()}
+        domains = [d for d in (domains or settings.domains) if d in available_domains()]
+        start = {d: (genome or {}).get(d) or getattr(settings, f"{d}_genome", "default") for d in domains}
         self.cats: dict[str, Catalog] = {d: load_genome(self.genome_info(d, g)) for d, g in start.items()}
         self.traits = self._traits(self.cats)
         self.store = store or JsonProfileStore()
-        self.reader, self.chat = reader, chat
+        self.reader = reader
         self._models: OrderedDict = OrderedDict()
         self._cache_size = cache_size
         self._lock = threading.Lock()
@@ -73,7 +75,8 @@ class Engine:
 
     def switch_genome(self, domain: str, name: str) -> Catalog:
         """Rebuild `domain`'s catalogue from another genome, and everything built on it.
-        Global to the server: every user sees the switch. Ratings are untouched."""
+        Global to the server: every user sees the switch. Ratings are untouched. Not exposed by
+        the API for now (the app always uses TASTE_BOOK_GENOME)."""
         cat = load_genome(self.genome_info(domain, name))
         cats = {**self.cats, domain: cat}
         traits = self._traits(cats)

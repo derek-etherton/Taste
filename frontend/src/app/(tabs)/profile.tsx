@@ -1,52 +1,21 @@
-/** Profile: Describe Me, then what the model has inferred: shared traits and each domain's own taste. */
-import { useState } from 'react';
+/** Profile: the algorithm's settings, then what the model has inferred about your taste in books. */
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { Claim, Claims } from '@/api/client';
-import { useDescribe, useDescription, useProfile } from '@/api/hooks';
-import { ACCENT, Button, Chips, Loading, Note, Screen, listPadding } from '@/components/kit';
-import { SettingsBar } from '@/components/settings-bar';
+import { useProfile } from '@/api/hooks';
+import { ACCENT, Loading, Note, Screen, listPadding } from '@/components/kit';
+import { QualitySlider } from '@/components/quality-slider';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
 const ICON: Record<number, string> = { 1: '👍', 0: '😐', [-1]: '👎' };
-const DOMAIN_ICON: Record<string, string> = { film: '🎬', book: '📚' };
-
-function DescribeMe() {
-  const { user } = useSettings();
-  const description = useDescription(user);
-  const describe = useDescribe(user);
-  const d = description.data;
-  return (
-    <View style={styles.section}>
-      <View style={styles.describeRow}>
-        <Button primary label="Describe Me" busy={describe.isPending} onPress={() => describe.mutate()} />
-        {describe.isPending && (
-          <ThemedText type="small" themeColor="textSecondary">
-            Writing your reading… (about 30 seconds)
-          </ThemedText>
-        )}
-      </View>
-      {describe.isError && <Note tone="error">{describe.error.message}</Note>}
-      {d && (
-        <Note>
-          <ThemedText>{d.text}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary" style={{ marginTop: Spacing.two }}>
-            Written {d.created.replace('T', ' at ')}
-            {d.stale ? '. Your ratings have changed since; press Describe Me for a fresh one.' : ''}
-          </ThemedText>
-        </Note>
-      )}
-    </View>
-  );
-}
 
 function ClaimRow({ claim, top }: { claim: Claim; top: number }) {
   const theme = useTheme();
   const items = (es: Claim['supporting']) =>
-    es.map((e) => `${ICON[e.rating]} ${DOMAIN_ICON[e.domain] ?? ''} ${e.item}`).join('; ');
+    es.map((e) => `${ICON[e.rating]} ${e.item}`).join('; ');
   return (
     <View style={styles.claim}>
       <ThemedText type="smallBold">{claim.tag}</ThemedText>
@@ -89,50 +58,31 @@ function ClaimLists({ claims, empty }: { claims: Claims; empty: string }) {
 }
 
 export default function ProfileScreen() {
-  const { user } = useSettings();
+  const { user, domain } = useSettings();
   const profile = useProfile(user);
-  const [section, setSection] = useState('shared');
-  const p = profile.data;
-  const sections = [
-    ...(p?.shared ? [{ value: 'shared', label: 'Shared traits' }] : []),
-    ...(p?.domains ?? []).map((d) => ({ value: d.domain, label: `${d.name} only` })),
-  ];
-  const current = sections.some((s) => s.value === section) ? section : sections[0]?.value;
-  const domain = p?.domains.find((d) => d.domain === current);
+  const books = profile.data?.domains.find((d) => d.domain === domain);
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={[listPadding, styles.page]}>
-        <SettingsBar showQuality={false} />
-        <DescribeMe />
-        <ThemedText type="small" themeColor="textSecondary">
-          Evidence lists only items that clearly have the trait. for: rated the way the trait points. against: rated
-          the other way, or meh.
-        </ThemedText>
-        {profile.isPending && <Loading />}
-        {profile.isError && <Note tone="error">{profile.error.message}</Note>}
-        {p && current && (
-          <>
-            <Chips options={sections} value={current} onChange={setSection} />
-            {current === 'shared' && p.shared ? (
-              <>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Traits that mean the same across {p.domains.map((d) => d.name.toLowerCase()).join(' and ')}, fit on
-                  all your ratings. This is what carries over between domains.
-                </ThemedText>
-                <ClaimLists claims={p.shared} empty="No ratings yet." />
-              </>
-            ) : domain ? (
-              <>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {domain.confidence}. Taste learnt from these ratings alone, on top of what carried over from other
-                  domains.
-                </ThemedText>
-                <ClaimLists claims={domain.claims} empty={`No ${domain.name.toLowerCase()} rated yet.`} />
-              </>
-            ) : null}
-          </>
-        )}
+        <View style={styles.section}>
+          <ThemedText type="subtitle">Algorithm</ThemedText>
+          <QualitySlider />
+        </View>
+        <View style={styles.section}>
+          <ThemedText type="subtitle">Taste</ThemedText>
+          {profile.isPending && <Loading />}
+          {profile.isError && <Note tone="error">{profile.error.message}</Note>}
+          {books && (
+            <>
+              <ThemedText type="small" themeColor="textSecondary">
+                Your taste in books, {books.confidence}. Evidence lists only books that clearly have the trait. for:
+                rated the way the trait points. against: rated the other way, or meh.
+              </ThemedText>
+              <ClaimLists claims={books.claims} empty="No books rated yet." />
+            </>
+          )}
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -141,7 +91,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   page: { gap: Spacing.three },
   section: { gap: Spacing.two },
-  describeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, flexWrap: 'wrap' },
   columns: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four },
   column: { flex: 1, minWidth: 260, gap: Spacing.three },
   columnTitle: { fontSize: 22, lineHeight: 28 },

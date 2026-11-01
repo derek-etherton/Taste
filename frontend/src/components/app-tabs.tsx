@@ -1,24 +1,29 @@
 import { NativeTabs } from 'expo-router/native-tabs';
-import { useColorScheme } from 'react-native';
+import { Platform } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
-/** Native tab bar on iOS and Android (the web version is app-tabs.web.tsx). */
+/** The tab bar: native on iOS and Android, Expo Router's floating bar on web. Tinted with the
+ * accent; iOS and Android keep their own bar material. */
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
+  const theme = useTheme();
+  const web =
+    Platform.OS === 'web'
+      ? {
+          backgroundColor: theme.card,
+          indicatorColor: theme.fill,
+          labelStyle: { color: theme.secondaryLabel, fontSize: 15, fontWeight: '600' as const },
+        }
+      : {};
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+    <NativeTabs tintColor={theme.accent} {...web}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Discover</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="sparkles" md="explore" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="shelf">
-        <NativeTabs.Trigger.Label>Shelf scan</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Shelf Scan</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="books.vertical" md="photo_camera" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">

@@ -1,19 +1,22 @@
-/** Discover: book recommendations ("For you"), the most useful books to rate ("Rate"), and your ratings. */
+/** Discover: book recommendations ("For You"), the most useful books to rate ("Rate"), and your
+ * ratings, as one inset-grouped list under a large title. */
+import { SegmentedControl } from '@expo/ui/community/segmented-control';
 import { useEffect, useMemo, useState } from 'react';
-import { FlatList, StyleSheet, TextInput, View } from 'react-native';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import type { ItemCard } from '@/api/client';
 import { type Mode, useItems, useRated, useSummary } from '@/api/hooks';
 import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
-import { Chips, Loading, Note, Screen, listPadding } from '@/components/kit';
+import { LargeTitle, Loading, Note, Screen, SearchField, listPadding } from '@/components/kit';
 import { TagFilter } from '@/components/tag-filter';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettings } from '@/state/settings';
 
 type View_ = Mode | 'rated';
+const VIEWS: View_[] = ['for_you', 'rate', 'rated'];
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [debounced, setDebounced] = useState(value);
@@ -26,7 +29,7 @@ function useDebounced<T>(value: T, ms = 250): T {
 
 export default function Discover() {
   const { user, domain, quality } = useSettings();
-  const theme = useTheme();
+  const scheme = useColorScheme();
   const summary = useSummary(user);
   const [view, setView] = useState<View_>('for_you');
   const [text, setText] = useState('');
@@ -36,7 +39,6 @@ export default function Discover() {
 
   const items = useItems(user, domain, view === 'rated' ? 'for_you' : view, q, quality, tags);
   const rated = useRated(user, domain, quality);
-  const name = 'Books';
   const thisDomain = summary.data?.find((d) => d.domain === domain);
 
   const pages = items.data?.pages;
@@ -50,36 +52,36 @@ export default function Discover() {
 
   const header = (
     <View style={styles.header}>
-      {thisDomain && (
-        <ThemedText type="small" themeColor="textSecondary">
-          {thisDomain.confidence}
-        </ThemedText>
-      )}
-      <Chips
-        options={[
-          { value: 'for_you', label: 'For you' },
-          { value: 'rate', label: `Rate ${name.toLowerCase()}` },
-          { value: 'rated', label: `Your ratings${rated.data ? ` (${rated.data.length})` : ''}` },
-        ]}
-        value={view}
-        onChange={(v) => setView(v as View_)}
+      <View>
+        <LargeTitle title="Discover" />
+        {thisDomain && (
+          <ThemedText type="subheadline" themeColor="secondaryLabel">
+            {thisDomain.confidence.charAt(0).toUpperCase() + thisDomain.confidence.slice(1)}
+          </ThemedText>
+        )}
+      </View>
+      <SegmentedControl
+        values={['For You', 'Rate', `Ratings${rated.data ? ` (${rated.data.length})` : ''}`]}
+        selectedIndex={VIEWS.indexOf(view)}
+        onChange={(e) => setView(VIEWS[e.nativeEvent.selectedSegmentIndex])}
+        appearance={scheme === 'dark' ? 'dark' : 'light'} // the app's choice, which may differ from the system's
       />
       {view !== 'rated' && (
-        <TextInput
-          value={text}
-          onChangeText={setText}
-          placeholder={`Search ${name.toLowerCase()} by title or name…`}
-          placeholderTextColor={theme.textSecondary}
-          autoCorrect={false}
-          style={[styles.search, { backgroundColor: theme.backgroundElement, color: theme.text }]}
-        />
+        <>
+          <SearchField value={text} onChangeText={setText} placeholder="Title or author" />
+          <TagFilter domain={domain} value={tags} onChange={setTags} />
+        </>
       )}
-      {view !== 'rated' && <TagFilter domain={domain} value={tags} onChange={setTags} />}
       {view === 'for_you' && !q && thisDomain?.rated === 0 && !source && (
-        <Note>{`Rate a few ${name.toLowerCase()}. Until then this is just the best-rated overall.`}</Note>
+        <ThemedText type="footnote" themeColor="secondaryLabel">
+          Rate a few books. Until then this is just the best-rated overall.
+        </ThemedText>
       )}
       {view === 'rate' && !q && (
-        <Note>{`Well-known ${name.toLowerCase()} your profile knows least about, spread across different kinds. Rating these teaches it the most.`}</Note>
+        <ThemedText type="footnote" themeColor="secondaryLabel">
+          Well-known books your profile knows least about, spread across different kinds. Rating these teaches it the
+          most.
+        </ThemedText>
       )}
       {error && <Note tone="error">{error.message}</Note>}
     </View>
@@ -91,7 +93,7 @@ export default function Discover() {
         data={data}
         keyExtractor={(c) => c.key}
         renderItem={({ item, index }) => (
-          <ItemRow item={item} rank={view === 'rated' || q ? undefined : index + 1} source={source} onExplain={setExplaining} />
+          <ItemRow item={item} index={index} count={data.length} source={source} onExplain={setExplaining} />
         )}
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? <Loading /> : <Note>{q ? 'No matches.' : 'Nothing here yet.'}</Note>}
@@ -100,6 +102,7 @@ export default function Discover() {
         onEndReachedThreshold={0.5}
         contentContainerStyle={listPadding}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       />
       <ExplanationSheet domain={domain} item={explaining} source={source} onClose={() => setExplaining(null)} />
     </Screen>
@@ -107,6 +110,5 @@ export default function Discover() {
 }
 
 const styles = StyleSheet.create({
-  header: { gap: Spacing.three, paddingBottom: Spacing.two },
-  search: { paddingHorizontal: Spacing.three, paddingVertical: Spacing.two + 2, borderRadius: Spacing.three, fontSize: 16 },
+  header: { gap: Spacing.three, paddingBottom: Spacing.three },
 });

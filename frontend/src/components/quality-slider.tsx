@@ -1,45 +1,54 @@
 /** The weight on general quality (the API's `quality`, 0 to 1): how much a book's ratings from other
- * readers count towards its score, shown as a percentage. */
-import Slider from '@react-native-community/slider';
-import { useState } from 'react';
+ * readers count towards its score, shown as a percentage. A settings row: label and value, then
+ * the slider. */
+import { Slider } from '@expo/ui/community/slider';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ACCENT } from '@/components/kit';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
-/** 0 to 1 in steps of 0.05. Lists only refetch when you let go, not on every step of the drag. */
+const SETTLE_MS = 400; // lists refetch once the slider rests, not on every step of a drag
+
 export function QualitySlider() {
   const { quality, setQuality } = useSettings();
   const theme = useTheme();
-  const [dragging, setDragging] = useState<number | null>(null);
+  const [value, setValue] = useState(quality);
+  useEffect(() => {
+    if (value === quality) return;
+    const t = setTimeout(() => setQuality(value), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [value, quality, setQuality]);
   return (
     <View style={styles.row}>
-      <ThemedText type="small" themeColor="textSecondary">
-        Book rating contribution: {Math.round((dragging ?? quality) * 100)}%
-      </ThemedText>
+      <View style={styles.labels}>
+        <ThemedText type="body" style={styles.flex}>
+          Book rating contribution
+        </ThemedText>
+        <ThemedText type="body" themeColor="secondaryLabel" style={styles.number}>
+          {Math.round(value * 100)}%
+        </ThemedText>
+      </View>
       <Slider
-        style={styles.slider}
+        value={value}
         minimumValue={0}
         maximumValue={1}
         step={0.05}
-        value={quality}
-        onValueChange={setDragging}
-        onSlidingComplete={(v) => {
-          setQuality(Math.round(v * 20) / 20);
-          setDragging(null);
-        }}
-        minimumTrackTintColor={ACCENT}
-        maximumTrackTintColor={theme.backgroundSelected}
-        thumbTintColor={ACCENT}
+        onValueChange={(v) => setValue(Math.round(v * 20) / 20)}
+        minimumTrackTintColor={theme.accent}
+        accessibilityLabel="Book rating contribution"
+        style={styles.slider}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { gap: Spacing.one },
-  slider: { width: '100%', maxWidth: 320, height: 28 },
+  row: { paddingHorizontal: Spacing.three, paddingVertical: 12, gap: Spacing.two },
+  labels: { flexDirection: 'row', alignItems: 'center' },
+  flex: { flex: 1 },
+  number: { fontVariant: ['tabular-nums'] },
+  slider: { width: '100%', height: 32 },
 });

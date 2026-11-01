@@ -8,10 +8,9 @@ import type { ItemCard } from '@/api/client';
 import { scanImageUrl, useScan, useStartScan } from '@/api/hooks';
 import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
-import { ACCENT, Button, Loading, Note, Screen, listPadding } from '@/components/kit';
+import { Button, LargeTitle, Loading, Note, Screen, Section, Separator, listPadding } from '@/components/kit';
 import { ThemedText } from '@/components/themed-text';
-import { Collapsible } from '@/components/ui/collapsible';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
@@ -45,16 +44,35 @@ export default function ShelfScan() {
   const progress = s?.progress && s.progress.total ? s.progress.done / s.progress.total : 0;
   const read = (s?.books.length ?? 0) + (s?.unmatched.length ?? 0);
   const photo = running && preview ? preview : s?.scanned ? scanImageUrl(user, s.scanned) : preview;
+  const books = running ? [] : (s?.books ?? []);
+  const done = !running && s && s.status !== 'none';
 
   const header = (
     <View style={styles.header}>
-      <ThemedText type="small" themeColor="textSecondary">
-        Snap or upload a photo of a bookshelf, at home or in a shop. We read the spines and sort the books we know by how
-        much you&apos;d like them.
-      </ThemedText>
+      <View>
+        <LargeTitle title="Shelf Scan" />
+        <ThemedText type="subheadline" themeColor="secondaryLabel">
+          Photograph a bookshelf, at home or in a shop. We read the spines and sort the books we know by how much
+          you&apos;d like them.
+        </ThemedText>
+      </View>
       <View style={styles.actions}>
-        {Platform.OS !== 'web' && <Button primary label="Take photo" onPress={() => pick(true)} disabled={running} />}
-        <Button primary={Platform.OS === 'web'} label="Choose photo" onPress={() => pick(false)} disabled={running} />
+        {Platform.OS !== 'web' && (
+          <Button
+            variant="filled"
+            icon={{ ios: 'camera', md: 'photo_camera' }}
+            label="Take Photo"
+            onPress={() => pick(true)}
+            disabled={running}
+          />
+        )}
+        <Button
+          variant={Platform.OS === 'web' ? 'filled' : 'gray'}
+          icon={{ ios: 'photo.on.rectangle', md: 'photo_library' }}
+          label="Choose Photo"
+          onPress={() => pick(false)}
+          disabled={running}
+        />
       </View>
       {problem && <Note tone="error">{problem}</Note>}
       {start.isError && <Note tone="error">{start.error.message}</Note>}
@@ -62,55 +80,76 @@ export default function ShelfScan() {
       {scan.isError && <Note tone="error">{scan.error.message}</Note>}
 
       {(photo || running) && (
-        <View style={styles.result}>
-          {photo && <Image source={{ uri: photo }} style={styles.photo} contentFit="contain" />}
-          <View style={styles.summary}>
-            {running ? (
-              <>
-                <ThemedText type="smallBold">
-                  {s?.progress?.total ? `Reading the spines: part ${Math.min(s.progress.done + 1, s.progress.total)} of ${s.progress.total}…` : 'Finding the shelves…'}
-                </ThemedText>
-                <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}>
-                  <View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} />
-                </View>
-                <ThemedText type="small" themeColor="textSecondary">
-                  About a minute for a full bookcase.
-                </ThemedText>
-              </>
-            ) : s?.status !== 'none' && s ? (
-              <>
-                <ThemedText type="smallBold">
-                  On this shelf, best for you first · {s.books.length} of {read} books recognised
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {s.photo_name}, scanned {s.scanned?.replace('T', ' at ')}
-                </ThemedText>
-                {s.unmatched.length > 0 && (
-                  <Collapsible title={`Read but not in our catalogue (${s.unmatched.length})`}>
-                    {s.unmatched.map((u, i) => (
-                      <ThemedText key={`${u.title}-${i}`} type="small">
-                        • {u.title}
-                        {u.author ? ` · ${u.author}` : ''}
-                      </ThemedText>
-                    ))}
-                  </Collapsible>
-                )}
-              </>
-            ) : null}
+        <Section>
+          <View style={styles.result}>
+            {photo && <Image source={{ uri: photo }} style={styles.photo} contentFit="cover" />}
+            <View style={styles.summary}>
+              {running ? (
+                <>
+                  <ThemedText type="headline">
+                    {s?.progress?.total
+                      ? `Reading part ${Math.min(s.progress.done + 1, s.progress.total)} of ${s.progress.total}…`
+                      : 'Finding the shelves…'}
+                  </ThemedText>
+                  <View style={[styles.track, { backgroundColor: theme.fill }]}>
+                    <View style={[styles.fill, { width: `${Math.round(progress * 100)}%`, backgroundColor: theme.accent }]} />
+                  </View>
+                  <ThemedText type="footnote" themeColor="secondaryLabel">
+                    About a minute for a full bookcase.
+                  </ThemedText>
+                </>
+              ) : done ? (
+                <>
+                  <ThemedText type="headline">
+                    {s.books.length} of {read} books recognised
+                  </ThemedText>
+                  <ThemedText type="footnote" themeColor="secondaryLabel">
+                    {s.photo_name}, scanned {s.scanned?.replace('T', ' at ')}
+                  </ThemedText>
+                </>
+              ) : null}
+            </View>
           </View>
-        </View>
+        </Section>
+      )}
+      {books.length > 0 && (
+        <ThemedText type="title3" accessibilityRole="header" style={styles.listTitle}>
+          On this shelf, best for you first
+        </ThemedText>
       )}
     </View>
   );
 
+  const footer =
+    done && s.unmatched.length > 0 ? (
+      <View style={styles.footer}>
+        <Section title="Not in our catalogue" footer="Spines we read but couldn't find among our books.">
+          {s.unmatched.map((u, i) => (
+            <View key={`${u.title}-${i}`}>
+              {i > 0 && <Separator />}
+              <View style={styles.unmatched}>
+                <ThemedText type="body">{u.title}</ThemedText>
+                {u.author && (
+                  <ThemedText type="subheadline" themeColor="secondaryLabel">
+                    {u.author}
+                  </ThemedText>
+                )}
+              </View>
+            </View>
+          ))}
+        </Section>
+      </View>
+    ) : undefined;
+
   return (
     <Screen>
       <FlatList
-        data={running ? [] : (s?.books ?? [])}
+        data={books}
         keyExtractor={(c) => c.key}
-        renderItem={({ item, index }) => <ItemRow item={item} rank={index + 1} onExplain={setExplaining} />}
+        renderItem={({ item, index }) => <ItemRow item={item} index={index} count={books.length} onExplain={setExplaining} />}
         ListHeaderComponent={header}
         ListEmptyComponent={scan.isPending ? <Loading /> : undefined}
+        ListFooterComponent={footer}
         contentContainerStyle={listPadding}
       />
       <ExplanationSheet domain="book" item={explaining} onClose={() => setExplaining(null)} />
@@ -121,9 +160,12 @@ export default function ShelfScan() {
 const styles = StyleSheet.create({
   header: { gap: Spacing.three, paddingBottom: Spacing.two },
   actions: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
-  result: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three },
-  photo: { width: 160, height: 220, borderRadius: Spacing.two },
-  summary: { flex: 1, minWidth: 220, gap: Spacing.two },
-  track: { height: 8, borderRadius: 4, overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 4, backgroundColor: ACCENT },
+  result: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three, padding: Spacing.three, alignItems: 'center' },
+  photo: { width: 96, height: 128, borderRadius: Radius.field },
+  summary: { flex: 1, minWidth: 200, gap: Spacing.two },
+  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  fill: { height: 4, borderRadius: 2 },
+  listTitle: { paddingHorizontal: Spacing.one, paddingTop: Spacing.two },
+  footer: { paddingTop: Spacing.four },
+  unmatched: { paddingVertical: 11, paddingHorizontal: Spacing.three },
 });

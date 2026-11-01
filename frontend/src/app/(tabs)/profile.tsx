@@ -1,56 +1,71 @@
 /** Profile: the algorithm's settings, then what the model has inferred about your taste in books. */
+import { Fragment } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { Claim, Claims } from '@/api/client';
 import { useProfile } from '@/api/hooks';
-import { ACCENT, Loading, Note, Screen, listPadding } from '@/components/kit';
+import { LargeTitle, Loading, Note, Screen, Section, Separator, listPadding } from '@/components/kit';
 import { QualitySlider } from '@/components/quality-slider';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
-const ICON: Record<number, string> = { 1: '👍', 0: '😐', [-1]: '👎' };
+const RATED: Record<number, string> = { 1: 'Liked', 0: 'Meh', [-1]: 'Disliked' };
 
-function ClaimRow({ claim, top }: { claim: Claim; top: number }) {
+/** "Liked: A, B; Meh: C": evidence grouped by how you rated it. */
+function evidence(es: Claim['supporting']): string {
+  return [1, 0, -1]
+    .map((r) => [r, es.filter((e) => e.rating === r).map((e) => e.item)] as const)
+    .filter(([, items]) => items.length)
+    .map(([r, items]) => `${RATED[r]}: ${items.join(', ')}`)
+    .join('; ');
+}
+
+function ClaimRow({ claim, top, color }: { claim: Claim; top: number; color: string }) {
   const theme = useTheme();
-  const items = (es: Claim['supporting']) =>
-    es.map((e) => `${ICON[e.rating]} ${e.item}`).join('; ');
   return (
     <View style={styles.claim}>
-      <ThemedText type="smallBold">{claim.tag}</ThemedText>
-      <View style={[styles.track, { backgroundColor: theme.backgroundElement }]}>
-        <View style={[styles.fill, { width: `${Math.min(100, (Math.abs(claim.weight) / top) * 100)}%` }]} />
+      <ThemedText type="headline">{claim.tag}</ThemedText>
+      <View style={[styles.track, { backgroundColor: theme.fill }]}>
+        <View style={[styles.bar, { width: `${Math.min(100, (Math.abs(claim.weight) / top) * 100)}%`, backgroundColor: color }]} />
       </View>
       {claim.supporting.length > 0 && (
-        <ThemedText type="small" themeColor="textSecondary">for: {items(claim.supporting)}</ThemedText>
+        <ThemedText type="footnote" themeColor="secondaryLabel">
+          {evidence(claim.supporting)}
+        </ThemedText>
       )}
       {claim.contradicting.length > 0 && (
-        <ThemedText type="small" themeColor="textSecondary">against: {items(claim.contradicting)}</ThemedText>
+        <ThemedText type="footnote" themeColor="secondaryLabel">
+          Against it, {evidence(claim.contradicting)}
+        </ThemedText>
       )}
     </View>
   );
 }
 
-function ClaimLists({ claims, empty }: { claims: Claims; empty: string }) {
+function ClaimLists({ claims }: { claims: Claims }) {
+  const theme = useTheme();
   const all = [...claims.respond_to, ...claims.push_back_on];
-  if (all.length === 0) return <Note>{empty}</Note>;
+  if (all.length === 0) return <Note>No books rated yet.</Note>;
   const top = Math.max(...all.map((c) => Math.abs(c.weight)));
   return (
     <View style={styles.columns}>
       {(
         [
-          ['You respond to', claims.respond_to],
-          ['You push back on', claims.push_back_on],
+          ['You respond to', claims.respond_to, theme.chartUp],
+          ['You push back on', claims.push_back_on, theme.chartDown],
         ] as const
-      ).map(([title, list]) => (
+      ).map(([title, list, color]) => (
         <View key={title} style={styles.column}>
-          <ThemedText type="subtitle" style={styles.columnTitle}>
-            {title}
-          </ThemedText>
-          {list.map((c) => (
-            <ClaimRow key={c.tag} claim={c} top={top} />
-          ))}
+          <Section title={title}>
+            {list.map((c, i) => (
+              <Fragment key={c.tag}>
+                {i > 0 && <Separator />}
+                <ClaimRow claim={c} top={top} color={color} />
+              </Fragment>
+            ))}
+          </Section>
         </View>
       ))}
     </View>
@@ -65,23 +80,25 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={[listPadding, styles.page]}>
-        <View style={styles.section}>
-          <ThemedText type="subtitle">Algorithm</ThemedText>
+        <LargeTitle title="Profile" />
+        <Section title="Algorithm">
           <QualitySlider />
-        </View>
-        <View style={styles.section}>
-          <ThemedText type="subtitle">Taste</ThemedText>
+        </Section>
+        <View style={styles.taste}>
+          <View style={styles.tasteHead}>
+            <ThemedText type="title2" accessibilityRole="header">
+              Taste
+            </ThemedText>
+            {books && (
+              <ThemedText type="footnote" themeColor="secondaryLabel">
+                {books.confidence.charAt(0).toUpperCase() + books.confidence.slice(1)}. Each trait lists the rated books
+                that clearly have it.
+              </ThemedText>
+            )}
+          </View>
           {profile.isPending && <Loading />}
           {profile.isError && <Note tone="error">{profile.error.message}</Note>}
-          {books && (
-            <>
-              <ThemedText type="small" themeColor="textSecondary">
-                Your taste in books, {books.confidence}. Evidence lists only books that clearly have the trait. for:
-                rated the way the trait points. against: rated the other way, or meh.
-              </ThemedText>
-              <ClaimLists claims={books.claims} empty="No books rated yet." />
-            </>
-          )}
+          {books && <ClaimLists claims={books.claims} />}
         </View>
       </ScrollView>
     </Screen>
@@ -89,12 +106,12 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  page: { gap: Spacing.three },
-  section: { gap: Spacing.two },
+  page: { gap: Spacing.four },
+  taste: { gap: Spacing.three },
+  tasteHead: { gap: Spacing.one, paddingHorizontal: Spacing.one },
   columns: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four },
-  column: { flex: 1, minWidth: 260, gap: Spacing.three },
-  columnTitle: { fontSize: 22, lineHeight: 28 },
-  claim: { gap: 4 },
-  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
-  fill: { height: 6, borderRadius: 3, backgroundColor: ACCENT },
+  column: { flex: 1, minWidth: 280 },
+  claim: { gap: 6, paddingVertical: 12, paddingHorizontal: Spacing.three },
+  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
+  bar: { height: 4, borderRadius: 2 },
 });

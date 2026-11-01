@@ -1,148 +1,109 @@
 /** One book: its details, its score for you, the tags that set it apart and drive the score, and the
- * most similar books. */
-import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+ * most similar books. Pushed over the tabs, under a native navigation bar. */
+import { useLocalSearchParams } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useItem } from '@/api/hooks';
 import { BookAbout, BookCover, bookFacts } from '@/components/book-info';
 import { ItemRow, RatingButtons } from '@/components/item-row';
-import { Loading, Note, Screen } from '@/components/kit';
+import { Loading, Note, Section } from '@/components/kit';
 import { DistinctiveTags, ScoreBreakdown, signed } from '@/components/tag-charts';
 import { ThemedText } from '@/components/themed-text';
-import { BottomTabInset, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedView } from '@/components/themed-view';
+import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { useSettings } from '@/state/settings';
-
-const NOUNS: Record<string, [string, string]> = { book: ['book', 'books'] };
-
-function back() {
-  if (router.canGoBack()) router.back();
-  else router.replace('/'); // opened straight from a link
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <ThemedText type="smallBold">{title}</ThemedText>
-      {children}
-    </View>
-  );
-}
 
 export default function ItemPage() {
   const { key } = useLocalSearchParams<{ key: string }>();
   const { user, quality } = useSettings();
-  const theme = useTheme();
   const item = useItem(user, key, quality);
-  const domain = key.split(':')[0];
-  const [noun, nouns] = NOUNS[domain] ?? ['item', 'items'];
   const d = item.data;
   const ex = d?.explanation;
   const card = d?.card;
-  const details = card ? [card.creator, card.genres.join(' · ')].filter(Boolean) : [];
   const book = d?.book;
+  const facts = book ? bookFacts(book) : '';
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.page}>
-        <Pressable accessibilityRole="button" onPress={back} style={({ pressed }) => [styles.back, pressed && { opacity: 0.6 }]}>
-          <ThemedText type="small" themeColor="textSecondary">
-            ‹ Back
-          </ThemedText>
-        </Pressable>
+    <ThemedView style={styles.screen}>
+      <ScrollView contentInsetAdjustmentBehavior="automatic" contentContainerStyle={styles.page}>
         {item.isPending && <Loading />}
         {item.isError && <Note tone="error">{item.error.message}</Note>}
         {card && ex && d && (
           <>
-            <View style={styles.headRow}>
-              {book && <BookCover book={book} />}
-              <View style={styles.head}>
-                <ThemedText type="subtitle">{card.label}</ThemedText>
-                {details.map((line) => (
-                  <ThemedText key={line} themeColor="textSecondary">
-                    {line}
-                  </ThemedText>
-                ))}
-                {card.series && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {card.series}
-                  </ThemedText>
-                )}
-                {book && bookFacts(book) && (
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {bookFacts(book)}
-                  </ThemedText>
-                )}
-              </View>
+            <View style={styles.head}>
+              <BookCover book={book} />
+              <ThemedText type="title2" style={styles.center}>
+                {card.title}
+              </ThemedText>
+              <ThemedText type="body" themeColor="secondaryLabel" style={styles.center}>
+                {card.creator}
+              </ThemedText>
+              {(facts || card.year) && (
+                <ThemedText type="footnote" themeColor="secondaryLabel" style={styles.center}>
+                  {facts || card.year}
+                </ThemedText>
+              )}
             </View>
 
-            <View style={[styles.score, { backgroundColor: theme.backgroundElement }]}>
-              <View style={styles.scoreTop}>
-                <View>
-                  <ThemedText type="title" style={styles.scoreValue}>
-                    {signed(card.score)}
-                  </ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    your predicted rating: +1 like, 0 meh, −1 dislike
-                  </ThemedText>
-                </View>
-                <RatingButtons item={card} />
+            <Section
+              title="For You"
+              footer={`Beats ${Math.floor(card.percentile)}% of the books you haven't rated. ${signed(ex.quality_part, 3)} of it comes from other readers' ratings${ex.transferred_part ? `, ${signed(ex.transferred_part, 3)} carried over from your other ratings` : ''}.`}>
+              <View style={styles.score}>
+                <ThemedText type="title1" style={styles.number}>
+                  {signed(card.score)}
+                </ThemedText>
+                <ThemedText type="footnote" themeColor="secondaryLabel">
+                  Predicted rating: +1 like, 0 meh, −1 dislike
+                </ThemedText>
               </View>
-              <ThemedText type="small">
-                Beats {Math.floor(card.percentile)}% of the {nouns} you haven&apos;t rated.
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {signed(ex.quality_part, 3)} from general quality
-                {ex.transferred_part ? ` · ${signed(ex.transferred_part, 3)} carried over from your other ratings` : ''}
-              </ThemedText>
-            </View>
+              <View style={styles.rate}>
+                <RatingButtons item={card} labelled />
+              </View>
+            </Section>
 
-            {book && (
-              <Section title="About">
-                <BookAbout book={book} />
-              </Section>
-            )}
+            {book && <BookAbout book={book} />}
 
             <Section title="What sets it apart">
-              <DistinctiveTags tags={d.distinctive} noun={noun} />
+              <DistinctiveTags tags={d.distinctive} noun="book" />
             </Section>
 
-            <Section title={`Why it scores ${signed(card.score)} for you`}>
+            <Section
+              title={`Why it scores ${signed(card.score)}`}
+              footer={(() => {
+                const shown = [...ex.pulling_up, ...ex.pushing_down].reduce((s, t) => s + t.contribution, 0);
+                const rest = ex.score - ex.quality_part - shown;
+                return `${signed(ex.score)} = ${signed(shown)} from these tags, ${signed(rest)} from all the others, ${signed(ex.quality_part)} from other readers' ratings.`;
+              })()}>
               <ScoreBreakdown up={ex.pulling_up} down={ex.pushing_down} />
-              <ThemedText type="small" themeColor="textSecondary">
-                {(() => {
-                  const shown = [...ex.pulling_up, ...ex.pushing_down].reduce((s, t) => s + t.contribution, 0);
-                  const rest = ex.score - ex.quality_part - shown;
-                  return `Score ${signed(ex.score)} = ${signed(shown)} from these tags ${signed(rest)} from all the others ${signed(ex.quality_part)} from general quality.`;
-                })()}
-              </ThemedText>
             </Section>
 
-            <Section title={`Similar ${nouns}`}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Similarity runs from 1 (the same tag profile) through 0 (unrelated) to −1 (opposites), comparing how
-                each differs from the average {noun}.
-              </ThemedText>
-              <View>
-                {d.related.map((r) => (
-                  <ItemRow key={r.key} item={r} />
-                ))}
-              </View>
+            <Section
+              title="Similar books"
+              footer="How alike two books' tags are, measured by how each differs from the average book.">
+              {d.related.map((r, i) => (
+                <ItemRow key={r.key} item={r} index={i} />
+              ))}
             </Section>
           </>
         )}
       </ScrollView>
-    </Screen>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { padding: Spacing.three, paddingBottom: BottomTabInset + Spacing.six, gap: Spacing.four },
-  back: { alignSelf: 'flex-start', paddingVertical: Spacing.one },
-  headRow: { flexDirection: 'row', gap: Spacing.three, alignItems: 'flex-start' },
-  head: { flex: 1, gap: Spacing.one },
-  score: { borderRadius: Spacing.three, padding: Spacing.three, gap: Spacing.two },
-  scoreTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.three, flexWrap: 'wrap' },
-  scoreValue: { fontVariant: ['tabular-nums'] },
-  section: { gap: Spacing.two },
+  screen: { flex: 1 },
+  page: {
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    padding: Spacing.three,
+    paddingBottom: BottomTabInset + Spacing.six,
+    gap: Spacing.four,
+  },
+  head: { alignItems: 'center', gap: Spacing.one, paddingTop: Spacing.two },
+  center: { textAlign: 'center' },
+  score: { padding: Spacing.three, paddingBottom: Spacing.two },
+  number: { fontVariant: ['tabular-nums'] },
+  rate: { paddingHorizontal: Spacing.three, paddingBottom: Spacing.three },
 });

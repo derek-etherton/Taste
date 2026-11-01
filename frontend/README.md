@@ -33,10 +33,30 @@ npm run api:types
 ## Layout
 
 ```
-src/app/            screens (Expo Router): index (Discover), shelf (Shelf scan), profile
+src/app/            screens (Expo Router): (tabs)/index (Discover), (tabs)/shelf (Shelf Scan), (tabs)/profile,
+                    item/[key] (a book's page, pushed under a native navigation bar)
 src/api/            client.ts (typed fetch client), hooks.ts (TanStack Query), schema.d.ts (generated)
-src/components/     item-row (card + rating buttons), explanation-sheet, settings-bar, kit (shared UI), tabs
-src/state/          settings.tsx: current profile, domain, quality weight
+src/components/     kit (Screen, LargeTitle, Section, Button, SearchField, Icon, appearance toggle), item-row,
+                    sheet, explanation-sheet, tag-filter, tag-charts, book-info, quality-slider, app-tabs
+src/constants/      palette.ts (brand colours), theme.ts (colours, type, spacing), color.ts (contrast maths)
+src/state/          settings.tsx (quality weight), appearance.ts (the light/dark choice, saved on the device)
 ```
+
+## Look and feel
+
+The UI follows Apple's Human Interface Guidelines, using platform components where they exist:
+
+- **Tabs:** `NativeTabs` (the system tab bar on iOS and Android, Expo Router's floating bar on web).
+- **Controls:** `@expo/ui`'s segmented control and slider (SwiftUI on iOS, Compose on Android, web fallbacks).
+- **Icons:** SF Symbols via `expo-symbols` (Material Symbols on Android and web).
+- **Layout and type:** inset-grouped lists, capsule buttons and Apple's text styles, from `kit.tsx` and `theme.ts`.
+
+Colours are iOS system colours (grouped backgrounds, labels, separators, fills) plus a brand palette. **To change the palette**, paste the new colours into `src/constants/palette.ts` (any names; the "CSS HEX" export from coolors.co works) and point its three roles at them:
+
+- `accent`: the tint for buttons, links and controls;
+- `secondary`: the second chart hue;
+- `surfaceTint`: placeholders.
+
+`theme.ts` derives light and dark variants with enough contrast for each role. The sun/moon button at the top right switches light and dark, and is saved on the device (`localStorage` on web, AsyncStorage on phones); until it's used, the app follows the system.
 
 Checks: `npm run typecheck` and `npx expo lint`.

@@ -6,24 +6,41 @@ New to the maths? Start with [docs/how-it-works.md](docs/how-it-works.md), a pla
 
 ## Run
 
+Two parts, deployed independently:
+
+- `backend/`: Python model, storage and HTTP API (FastAPI).
+- `frontend/`: the app for web, Android and iOS (Expo / React Native), talking to the API. See [frontend/README.md](frontend/README.md).
+
 ```bash
 python -m venv .venv
-.venv/Scripts/python -m pip install -e ".[dev]"
-cp .env.example .env                               # then fill in the source URLs (and Ollama settings, if not the defaults)
-.venv/Scripts/python scripts/prepare_data.py film  # one-off, writes data/film/
-.venv/Scripts/python scripts/prepare_data.py book  # one-off, writes data/book/ and data/traits.json
-.venv/Scripts/python scripts/seed_profiles.py      # optional: normie and romantic test profiles
-.venv/Scripts/streamlit run taste/view/app.py
-.venv/Scripts/python -m pytest                     # tests
+.venv/Scripts/python -m pip install -e "backend[dev]"
+cp .env.example .env                                       # then fill in the source URLs (and Ollama settings, if not the defaults)
+cd backend
+../.venv/Scripts/python scripts/prepare_data.py film       # one-off, writes data/film/
+../.venv/Scripts/python scripts/prepare_data.py book       # one-off, writes data/book/ and data/traits.json
+../.venv/Scripts/python -m pip install -e ".[data]"        # optional, then: Open Library metadata (see below)
+../.venv/Scripts/python scripts/openlibrary.py
+../.venv/Scripts/python scripts/seed_profiles.py           # optional: normie and romantic test profiles
+../.venv/Scripts/uvicorn taste.api.app:app --reload        # the API; docs at http://localhost:8000/docs
+../.venv/Scripts/python -m pytest                          # tests
+cd ../frontend && npm install && npm run web               # the app in a browser, against the local API
 ```
+
+After the one-off setup, `python dev.py` from the repo root starts both the API (port 8000, auto-reloading) and the web app (port 8081). Ctrl+C stops both.
+
+Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
 
 `data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and the profiles in `data/users/<name>.json`, each with its ratings and latest Describe Me.
 
 ## Using the app
 
-- **Sidebar.** Pick a **Profile** (`main` is yours; others are for testing), then Films or Books. **Weight on general quality** sets how much widely-liked items get a boost.
-- **For you.** Unrated items ranked by how well they match you. The percentile button opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain. Book series show as one entry: the next volume you haven't rated.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop (on a phone, the upload button offers the camera). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+Three tabs: **Discover**, **Shelf scan** and **Profile**. Each starts with the **Profile** choice (`main` is yours; others are for testing) and **Weight on general quality** (how much widely-liked items get a boost).
+
+- **Discover.** Pick Films or Books, then:
+  - **For you:** unrated items ranked by how well they match you. The percentile chip opens a breakdown: which tags push the item up or down, how much comes from general quality, and how much carried over from your other domain.
+  - **Rate films / Rate books:** see below.
+  - **Your ratings.** Search covers the whole catalogue. 👍 😐 👎 rate an item; tapping the same one again clears it.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row, reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase), the titles are matched to the book catalogue, and the ones we know come back sorted for the current profile. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Each profile's last scan is saved (in its profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
 - **Rate films / Rate books.** Every unrated item. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
 - **Profile.** Three views:
   - **Shared traits:** taste that carries across domains.
@@ -31,27 +48,52 @@ cp .env.example .env                               # then fill in the source URL
 
   Every claim lists the rated items behind it. **Describe Me** asks a local [Ollama](https://ollama.com) model for a fun four-line "taste horoscope" built from your profile. By default it uses `qwen3:8b` at `http://localhost:11434`; set `OLLAMA_MODEL` / `OLLAMA_URL` in `.env` to change that.
 
+## API
+
+`backend/taste/api/`, FastAPI. Everything is per user under `/profiles/{user}`:
+
+| | |
+|---|---|
+| `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
+| `GET /genomes`, `PUT /genomes/{domain}` | each domain's genomes and the active one; switch (`{"genome": "<name>"}`, server-wide) |
+| `GET /domains/{domain}/tags` | the active genome's tags, to filter by |
+| `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=&tags=` | a page of item cards; with `tags` (repeatable), sorted by `tag_match` × the item's percentile in the mode's own order (has the tags *and* is high on your list) |
+| `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items, and for books what Open Library knows (`book`) |
+| `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
+| `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
+| `GET …/profile` | shared traits and each domain's own taste, with evidence |
+| `GET` / `POST …/description` | the saved Describe Me / write a new one (~30 s locally) |
+| `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results |
+
+`backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`.
+
 ## Layout
 
 ```
-taste/model/      calculations, no UI
+backend/          the Python backend (paths below are inside it)
+taste/model/      calculations: no UI, no storage
   catalog.py      one domain's items + centred item × tag matrix (common on-disk format)
-  ratings.py      profiles in data/users/: ratings across domains, and the saved Describe Me
+  genomes.py      which genomes each domain has (default + data/genomes/<domain>/*) and loading one
+  bookgenome.py   connector for BookGenome releases: links books to the default catalogue
+  openlibrary.py  joins data/book/openlibrary.csv onto the books when a catalogue is read
   user_model.py   per-domain profile fit (Bayesian ridge with an optional prior), scoring,
-                  ranking, series collapsing, teaching order, explanations
+                  ranking, teaching order, explanations
   traits.py       shared traits across domains: calibration, shared-taste posterior, priors
   describe.py     Describe Me: profile -> text brief -> a four-line taste horoscope from a local LLM
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
   llm.py          the local Ollama client both of those use
-taste/env.py      reads .env (source URLs, Ollama settings)
-taste/view/       Streamlit UI, imports taste.model
-  app.py          entry point: sidebar, tabs, wiring
-  components.py   item rows, rating buttons, score breakdown, profile lists
+taste/storage/    per-user ratings, Describe Me, last shelf scan: ProfileStore + JsonProfileStore
+taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), routes, schemas
+taste/settings.py settings from the environment / .env
 scripts/
   prepare_data.py     prepare_data.py <domain>
+  openlibrary.py      refresh the books' Open Library metadata from the newest monthly dump
   seed_profiles.py    test profiles (normie, romantic) built from lists of titles
+  export_openapi.py   the API spec, for the frontend
+  scan_photo.py       run Shelf scan on photos from the command line
   sources/            one adapter per source dataset, all writing the common format
-tests/            pytest: films, books, ratings, cross-domain transfer, Describe Me (no network)
+tests/            pytest: model, storage and API (no network)
+Dockerfile        the API image
 docs/             how-it-works.md
 ```
 
@@ -61,11 +103,34 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 
 | File | Contents |
 |---|---|
-| `items.csv` | `id, title, year, creator, genres, series, series_index, n_ratings, mean_rating, quality` (creator to series_index may be blank) |
+| `items.csv` | `id, title, year, creator, genres, series, series_index, n_ratings, mean_rating, quality` (creator to series_index may be blank); books add `goodreads_id` |
 | `tags.json` | tag names, in column order |
 | `relevance.npy` | items × tags, each score in [0, 1] |
 
 `data/traits.json` lists the tag correspondences between domains, e.g. `{"film": "dystopia", "book": "dystopia"}`. Adding a domain means writing one adapter and extending the correspondences.
+
+### Genomes
+
+`data/<domain>/` is a domain's `default` genome. Others can be switched to at runtime (the **Book genome** chips in the app, or `PUT /genomes/book`), to compare recommendations:
+
+- `data/genomes/<domain>/<name>/` in the common format, or for books a [BookGenome](../BookGenome) release folder;
+- BookGenome release folders used in place, listed in `TASTE_BOOK_GENOME_PATHS` (a JSON list of paths).
+
+`TASTE_BOOK_GENOME` / `TASTE_FILM_GENOME` pick the one the server starts with. A BookGenome release's books are linked to the default catalogue by title and author surname (subtitles, punctuation and "The" ignored), so they keep its IDs, and your ratings; the rest get `book:gb-<release id>` and average quality. Every release book counts equally when centring. Its tags inherit film links from the default tags they were derived from (`tags.csv`), preferring a same-named one; new tags stay book-only. Items missing from the active genome don't appear, but their ratings stay saved.
+
+### Open Library
+
+`backend/scripts/openlibrary.py` matches the books to [Open Library](https://openlibrary.org) works and keeps their metadata. It matches by the source's Goodreads ID (on Open Library editions), and otherwise by main title and author surname. Merged works are followed through Open Library's redirects. It writes three files to `data/book/`:
+
+| File | Contents |
+|---|---|
+| `openlibrary.duckdb` | our own copy of everything about the matched books: works, all their editions, authors, series, Open Library's ratings and reading log, for later features |
+| `openlibrary.csv` | what the app uses, one row per matched book: work ID, first-publication year (the earliest plausible edition year; the dataset's year is often a reprint's), series, description, first sentence, subjects, places, people, times, authors with dates, pages, original language, cover, ISBN, links, and Open Library's own rating and reader counts (stored, not yet used in scoring) |
+| `openlibrary.json` | which dump it was built from, and match counts |
+
+When a catalogue is read, the first-publication year replaces `year`, and Open Library's series fills in books whose title doesn't name one. The item page shows the rest.
+
+Open Library publishes full dumps monthly, about two days after month end (archive.org collection `ol_exports`). The script only downloads when a newer dump is out, so it is safe to schedule weekly, e.g. with Windows Task Scheduler running `.venv/Scripts/python scripts/openlibrary.py` from `backend/`, or cron. Restart the API afterwards. A refresh needs about 20 GB of disk while it runs (the works, editions and authors dumps), deleted afterwards unless `--keep-raw`. `--force` rebuilds from the same dump, and `--dump YYYY-MM-DD` picks one. Set `TASTE_OPENLIBRARY_CONTACT` to put a contact in the User-Agent, as Open Library asks. On licensing, Open Library says the Internet Archive asserts no new copyright over the database. It doesn't name a licence.
 
 ## How it works (short version)
 
@@ -83,4 +148,4 @@ Each source adapter writes `data/<domain>/`, so nothing in `taste/` knows which 
 - **Quality leaks into taste.** Tags like "oscar (best actor)" and "inspirational" track acclaim as much as taste.
 - **Source tag noise.** Some single tags are unreliable, e.g. "race" on a racing anime, or "cia" on *The Shining*.
 - **Book years** are often the year of a later edition, not first publication.
-- **A single user and a local JSON file.** Two browser tabs can overwrite each other's ratings.
+- **Profiles are local JSON files** with no auth, and shelf-scan jobs live in memory (lost on restart). A database and auth come next.

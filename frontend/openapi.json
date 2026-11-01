@@ -1,0 +1,2057 @@
+{
+ "openapi": "3.1.0",
+ "info": {
+  "title": "Taste",
+  "version": "0.2.0"
+ },
+ "paths": {
+  "/health": {
+   "get": {
+    "summary": "Health",
+    "operationId": "health_health_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Health Health Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/domains": {
+   "get": {
+    "summary": "Domains",
+    "operationId": "domains_domains_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Domain"
+         },
+         "type": "array",
+         "title": "Response Domains Domains Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/genomes": {
+   "get": {
+    "summary": "List Genomes",
+    "description": "Each domain's available genomes and the active one.",
+    "operationId": "list_genomes_genomes_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "$ref": "#/components/schemas/Genomes"
+         },
+         "type": "array",
+         "title": "Response List Genomes Genomes Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/genomes/{domain}": {
+   "put": {
+    "summary": "Switch Genome",
+    "description": "Rebuild a domain's catalogue from another genome, for every user (a testing switch).\nRatings stay saved; items the genome lacks don't appear until you switch back.",
+    "operationId": "switch_genome_genomes__domain__put",
+    "parameters": [
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GenomeIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Genomes"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles": {
+   "get": {
+    "summary": "Profiles",
+    "operationId": "profiles_profiles_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "items": {
+          "type": "string"
+         },
+         "type": "array",
+         "title": "Response Profiles Profiles Get"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}": {
+   "get": {
+    "summary": "Summary",
+    "operationId": "summary_profiles__user__get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/DomainSummary"
+         },
+         "title": "Response Summary Profiles  User  Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/{domain}/items": {
+   "get": {
+    "summary": "Items",
+    "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.\nWith tags, the order is tag_match \u00d7 the item's percentile in the mode's own order: a soft AND,\nso what comes first both has the tags and is high on your list.",
+    "operationId": "items_profiles__user___domain__items_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     },
+     {
+      "name": "mode",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "enum": [
+        "for_you",
+        "rate"
+       ],
+       "type": "string",
+       "default": "for_you",
+       "title": "Mode"
+      }
+     },
+     {
+      "name": "q",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "string",
+       "default": "",
+       "title": "Q"
+      }
+     },
+     {
+      "name": "page",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "minimum": 1,
+       "default": 1,
+       "title": "Page"
+      }
+     },
+     {
+      "name": "page_size",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 100,
+       "minimum": 1,
+       "default": 25,
+       "title": "Page Size"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     },
+     {
+      "name": "tags",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 10,
+       "default": [],
+       "title": "Tags"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ItemPage"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/domains/{domain}/tags": {
+   "get": {
+    "summary": "Tags",
+    "description": "The active genome's tags for a domain, alphabetical: what the list can be filtered by.",
+    "operationId": "tags_domains__domain__tags_get",
+    "parameters": [
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "type": "string"
+         },
+         "title": "Response Tags Domains  Domain  Tags Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/{domain}/items/{key}": {
+   "get": {
+    "summary": "Item",
+    "description": "An item's page: card, distinctive tags, the score breakdown, and the most similar items.",
+    "operationId": "item_profiles__user___domain__items__key__get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     },
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     },
+     {
+      "name": "related",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "integer",
+       "maximum": 50,
+       "minimum": 0,
+       "default": 10,
+       "title": "Related"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ItemDetail"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/{domain}/items/{key}/explanation": {
+   "get": {
+    "summary": "Explanation",
+    "description": "Why an item scores what it does: the score popover.",
+    "operationId": "explanation_profiles__user___domain__items__key__explanation_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     },
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Explanation"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/{domain}/rated": {
+   "get": {
+    "summary": "Rated",
+    "description": "The user's rated items: likes, then mehs, then dislikes.",
+    "operationId": "rated_profiles__user___domain__rated_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "domain",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Domain"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "array",
+         "items": {
+          "$ref": "#/components/schemas/ItemCard"
+         },
+         "title": "Response Rated Profiles  User   Domain  Rated Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/ratings/{key}": {
+   "put": {
+    "summary": "Rate",
+    "operationId": "rate_profiles__user__ratings__key__put",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/RatingIn"
+       }
+      }
+     }
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ratings"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "summary": "Unrate",
+    "operationId": "unrate_profiles__user__ratings__key__delete",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "key",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Key"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Ratings"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/profile": {
+   "get": {
+    "summary": "Profile",
+    "description": "What the model has inferred: traits shared across domains, then each domain's own taste.",
+    "operationId": "profile_profiles__user__profile_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Profile"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/description": {
+   "get": {
+    "summary": "Get Description",
+    "operationId": "get_description_profiles__user__description_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "anyOf": [
+          {
+           "$ref": "#/components/schemas/Description"
+          },
+          {
+           "type": "null"
+          }
+         ],
+         "title": "Response Get Description Profiles  User  Description Get"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   },
+   "post": {
+    "summary": "New Description",
+    "description": "Write a new Describe Me (takes ~30 s on a local model) and save it.",
+    "operationId": "new_description_profiles__user__description_post",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Description"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/shelf-scans": {
+   "post": {
+    "summary": "Start Scan",
+    "description": "Start reading a shelf photo. Poll GET .../shelf-scan for progress and results.",
+    "operationId": "start_scan_profiles__user__shelf_scans_post",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "requestBody": {
+     "required": true,
+     "content": {
+      "multipart/form-data": {
+       "schema": {
+        "$ref": "#/components/schemas/Body_start_scan_profiles__user__shelf_scans_post"
+       }
+      }
+     }
+    },
+    "responses": {
+     "202": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ShelfScan"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/shelf-scan": {
+   "get": {
+    "summary": "Get Scan",
+    "description": "The latest scan: running with progress, failed with an error, or done with ranked books.",
+    "operationId": "get_scan_profiles__user__shelf_scan_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     },
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ShelfScan"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/profiles/{user}/shelf-scan/image": {
+   "get": {
+    "summary": "Scan Image",
+    "operationId": "scan_image_profiles__user__shelf_scan_image_get",
+    "parameters": [
+     {
+      "name": "user",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
+       "title": "User"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {}
+       },
+       "image/jpeg": {}
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "components": {
+  "schemas": {
+   "Author": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "birth": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Birth"
+     },
+     "death": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Death"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "birth",
+     "death"
+    ],
+    "title": "Author"
+   },
+   "Because": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "from_other_domain": {
+      "type": "boolean",
+      "title": "From Other Domain"
+     }
+    },
+    "type": "object",
+    "required": [
+     "tag",
+     "from_other_domain"
+    ],
+    "title": "Because"
+   },
+   "Body_start_scan_profiles__user__shelf_scans_post": {
+    "properties": {
+     "photo": {
+      "type": "string",
+      "contentMediaType": "application/octet-stream",
+      "title": "Photo"
+     }
+    },
+    "type": "object",
+    "required": [
+     "photo"
+    ],
+    "title": "Body_start_scan_profiles__user__shelf_scans_post"
+   },
+   "BookInfo": {
+    "properties": {
+     "ol_work": {
+      "type": "string",
+      "title": "Ol Work"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
+     },
+     "first_published": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Published"
+     },
+     "pages": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Pages"
+     },
+     "original_language": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Original Language"
+     },
+     "description": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Description"
+     },
+     "first_sentence": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "First Sentence"
+     },
+     "subjects": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Subjects"
+     },
+     "places": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Places"
+     },
+     "people": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "People"
+     },
+     "times": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Times"
+     },
+     "authors": {
+      "items": {
+       "$ref": "#/components/schemas/Author"
+      },
+      "type": "array",
+      "title": "Authors"
+     },
+     "links": {
+      "items": {
+       "$ref": "#/components/schemas/Link"
+      },
+      "type": "array",
+      "title": "Links"
+     }
+    },
+    "type": "object",
+    "required": [
+     "ol_work",
+     "url",
+     "cover_url",
+     "first_published",
+     "pages",
+     "original_language",
+     "description",
+     "first_sentence",
+     "subjects",
+     "places",
+     "people",
+     "times",
+     "authors",
+     "links"
+    ],
+    "title": "BookInfo",
+    "description": "What Open Library knows about a book (see scripts/openlibrary.py)."
+   },
+   "Claim": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "weight": {
+      "type": "number",
+      "title": "Weight"
+     },
+     "supporting": {
+      "items": {
+       "$ref": "#/components/schemas/Evidence"
+      },
+      "type": "array",
+      "title": "Supporting"
+     },
+     "contradicting": {
+      "items": {
+       "$ref": "#/components/schemas/Evidence"
+      },
+      "type": "array",
+      "title": "Contradicting"
+     }
+    },
+    "type": "object",
+    "required": [
+     "tag",
+     "weight",
+     "supporting",
+     "contradicting"
+    ],
+    "title": "Claim"
+   },
+   "Claims": {
+    "properties": {
+     "respond_to": {
+      "items": {
+       "$ref": "#/components/schemas/Claim"
+      },
+      "type": "array",
+      "title": "Respond To"
+     },
+     "push_back_on": {
+      "items": {
+       "$ref": "#/components/schemas/Claim"
+      },
+      "type": "array",
+      "title": "Push Back On"
+     }
+    },
+    "type": "object",
+    "required": [
+     "respond_to",
+     "push_back_on"
+    ],
+    "title": "Claims"
+   },
+   "Description": {
+    "properties": {
+     "text": {
+      "type": "string",
+      "title": "Text"
+     },
+     "created": {
+      "type": "string",
+      "title": "Created"
+     },
+     "stale": {
+      "type": "boolean",
+      "title": "Stale"
+     }
+    },
+    "type": "object",
+    "required": [
+     "text",
+     "created",
+     "stale"
+    ],
+    "title": "Description"
+   },
+   "Domain": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "items": {
+      "type": "integer",
+      "title": "Items"
+     },
+     "genome": {
+      "type": "string",
+      "title": "Genome"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "name",
+     "items",
+     "genome"
+    ],
+    "title": "Domain"
+   },
+   "DomainProfile": {
+    "properties": {
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "rated": {
+      "type": "integer",
+      "title": "Rated"
+     },
+     "confidence": {
+      "type": "string",
+      "title": "Confidence"
+     },
+     "claims": {
+      "$ref": "#/components/schemas/Claims"
+     }
+    },
+    "type": "object",
+    "required": [
+     "domain",
+     "name",
+     "rated",
+     "confidence",
+     "claims"
+    ],
+    "title": "DomainProfile"
+   },
+   "DomainSummary": {
+    "properties": {
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "rated": {
+      "type": "integer",
+      "title": "Rated"
+     },
+     "confidence": {
+      "type": "string",
+      "title": "Confidence"
+     }
+    },
+    "type": "object",
+    "required": [
+     "domain",
+     "name",
+     "rated",
+     "confidence"
+    ],
+    "title": "DomainSummary"
+   },
+   "Evidence": {
+    "properties": {
+     "item": {
+      "type": "string",
+      "title": "Item"
+     },
+     "rating": {
+      "type": "integer",
+      "enum": [
+       -1,
+       0,
+       1
+      ],
+      "title": "Rating"
+     },
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     }
+    },
+    "type": "object",
+    "required": [
+     "item",
+     "rating",
+     "domain"
+    ],
+    "title": "Evidence"
+   },
+   "Explanation": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "percentile": {
+      "type": "number",
+      "title": "Percentile"
+     },
+     "rated": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "enum": [
+         -1,
+         0,
+         1
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rated"
+     },
+     "quality_part": {
+      "type": "number",
+      "title": "Quality Part"
+     },
+     "transferred_part": {
+      "type": "number",
+      "title": "Transferred Part"
+     },
+     "pulling_up": {
+      "items": {
+       "$ref": "#/components/schemas/TagContribution"
+      },
+      "type": "array",
+      "title": "Pulling Up"
+     },
+     "pushing_down": {
+      "items": {
+       "$ref": "#/components/schemas/TagContribution"
+      },
+      "type": "array",
+      "title": "Pushing Down"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label",
+     "score",
+     "percentile",
+     "rated",
+     "quality_part",
+     "transferred_part",
+     "pulling_up",
+     "pushing_down"
+    ],
+    "title": "Explanation"
+   },
+   "GenomeIn": {
+    "properties": {
+     "genome": {
+      "type": "string",
+      "title": "Genome"
+     }
+    },
+    "type": "object",
+    "required": [
+     "genome"
+    ],
+    "title": "GenomeIn"
+   },
+   "GenomeOption": {
+    "properties": {
+     "name": {
+      "type": "string",
+      "title": "Name"
+     },
+     "kind": {
+      "type": "string",
+      "title": "Kind"
+     },
+     "description": {
+      "type": "string",
+      "title": "Description"
+     }
+    },
+    "type": "object",
+    "required": [
+     "name",
+     "kind",
+     "description"
+    ],
+    "title": "GenomeOption"
+   },
+   "Genomes": {
+    "properties": {
+     "domain": {
+      "type": "string",
+      "title": "Domain"
+     },
+     "active": {
+      "type": "string",
+      "title": "Active"
+     },
+     "options": {
+      "items": {
+       "$ref": "#/components/schemas/GenomeOption"
+      },
+      "type": "array",
+      "title": "Options"
+     },
+     "items": {
+      "type": "integer",
+      "title": "Items"
+     },
+     "tags": {
+      "type": "integer",
+      "title": "Tags"
+     },
+     "linked": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Linked"
+     },
+     "traits": {
+      "type": "integer",
+      "title": "Traits"
+     }
+    },
+    "type": "object",
+    "required": [
+     "domain",
+     "active",
+     "options",
+     "items",
+     "tags",
+     "linked",
+     "traits"
+    ],
+    "title": "Genomes",
+    "description": "A domain's genomes: which are available, and what the active one holds."
+   },
+   "HTTPValidationError": {
+    "properties": {
+     "detail": {
+      "items": {
+       "$ref": "#/components/schemas/ValidationError"
+      },
+      "type": "array",
+      "title": "Detail"
+     }
+    },
+    "type": "object",
+    "title": "HTTPValidationError"
+   },
+   "ItemCard": {
+    "properties": {
+     "key": {
+      "type": "string",
+      "title": "Key"
+     },
+     "label": {
+      "type": "string",
+      "title": "Label"
+     },
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "year": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Year"
+     },
+     "creator": {
+      "type": "string",
+      "title": "Creator"
+     },
+     "genres": {
+      "items": {
+       "type": "string"
+      },
+      "type": "array",
+      "title": "Genres"
+     },
+     "series": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Series"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "percentile": {
+      "type": "number",
+      "title": "Percentile"
+     },
+     "rated": {
+      "anyOf": [
+       {
+        "type": "integer",
+        "enum": [
+         -1,
+         0,
+         1
+        ]
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Rated"
+     },
+     "because": {
+      "items": {
+       "$ref": "#/components/schemas/Because"
+      },
+      "type": "array",
+      "title": "Because"
+     },
+     "location": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Location"
+     },
+     "similarity": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Similarity"
+     },
+     "tag_match": {
+      "anyOf": [
+       {
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Tag Match"
+     },
+     "cover_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Cover Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "key",
+     "label",
+     "title",
+     "year",
+     "creator",
+     "genres",
+     "series",
+     "score",
+     "percentile",
+     "rated",
+     "because"
+    ],
+    "title": "ItemCard"
+   },
+   "ItemDetail": {
+    "properties": {
+     "card": {
+      "$ref": "#/components/schemas/ItemCard"
+     },
+     "distinctive": {
+      "items": {
+       "$ref": "#/components/schemas/TagStrength"
+      },
+      "type": "array",
+      "title": "Distinctive"
+     },
+     "explanation": {
+      "$ref": "#/components/schemas/Explanation"
+     },
+     "related": {
+      "items": {
+       "$ref": "#/components/schemas/ItemCard"
+      },
+      "type": "array",
+      "title": "Related"
+     },
+     "book": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/BookInfo"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     }
+    },
+    "type": "object",
+    "required": [
+     "card",
+     "distinctive",
+     "explanation",
+     "related"
+    ],
+    "title": "ItemDetail",
+    "description": "One item's page: its card, what sets it apart, why it scores what it does, and similar items."
+   },
+   "ItemPage": {
+    "properties": {
+     "items": {
+      "items": {
+       "$ref": "#/components/schemas/ItemCard"
+      },
+      "type": "array",
+      "title": "Items"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     },
+     "page": {
+      "type": "integer",
+      "title": "Page"
+     },
+     "page_size": {
+      "type": "integer",
+      "title": "Page Size"
+     },
+     "source": {
+      "type": "string",
+      "title": "Source"
+     }
+    },
+    "type": "object",
+    "required": [
+     "items",
+     "total",
+     "page",
+     "page_size",
+     "source"
+    ],
+    "title": "ItemPage"
+   },
+   "Link": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "url": {
+      "type": "string",
+      "title": "Url"
+     }
+    },
+    "type": "object",
+    "required": [
+     "title",
+     "url"
+    ],
+    "title": "Link"
+   },
+   "Profile": {
+    "properties": {
+     "user": {
+      "type": "string",
+      "title": "User"
+     },
+     "shared": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/Claims"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "domains": {
+      "items": {
+       "$ref": "#/components/schemas/DomainProfile"
+      },
+      "type": "array",
+      "title": "Domains"
+     }
+    },
+    "type": "object",
+    "required": [
+     "user",
+     "shared",
+     "domains"
+    ],
+    "title": "Profile"
+   },
+   "RatingIn": {
+    "properties": {
+     "value": {
+      "type": "integer",
+      "enum": [
+       -1,
+       0,
+       1
+      ],
+      "title": "Value",
+      "description": "1 like, 0 meh, -1 dislike"
+     }
+    },
+    "type": "object",
+    "required": [
+     "value"
+    ],
+    "title": "RatingIn"
+   },
+   "Ratings": {
+    "properties": {
+     "ratings": {
+      "additionalProperties": {
+       "type": "integer"
+      },
+      "type": "object",
+      "title": "Ratings"
+     }
+    },
+    "type": "object",
+    "required": [
+     "ratings"
+    ],
+    "title": "Ratings"
+   },
+   "ScanProgress": {
+    "properties": {
+     "done": {
+      "type": "integer",
+      "title": "Done"
+     },
+     "total": {
+      "type": "integer",
+      "title": "Total"
+     }
+    },
+    "type": "object",
+    "required": [
+     "done",
+     "total"
+    ],
+    "title": "ScanProgress"
+   },
+   "ShelfScan": {
+    "properties": {
+     "status": {
+      "type": "string",
+      "enum": [
+       "none",
+       "running",
+       "done",
+       "failed"
+      ],
+      "title": "Status"
+     },
+     "progress": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/ScanProgress"
+       },
+       {
+        "type": "null"
+       }
+      ]
+     },
+     "error": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Error"
+     },
+     "photo_name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Photo Name"
+     },
+     "scanned": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Scanned"
+     },
+     "books": {
+      "items": {
+       "$ref": "#/components/schemas/ItemCard"
+      },
+      "type": "array",
+      "title": "Books",
+      "default": []
+     },
+     "unmatched": {
+      "items": {
+       "$ref": "#/components/schemas/Spine"
+      },
+      "type": "array",
+      "title": "Unmatched",
+      "default": []
+     }
+    },
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "title": "ShelfScan"
+   },
+   "Spine": {
+    "properties": {
+     "title": {
+      "type": "string",
+      "title": "Title"
+     },
+     "author": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Author"
+     }
+    },
+    "type": "object",
+    "required": [
+     "title",
+     "author"
+    ],
+    "title": "Spine"
+   },
+   "TagContribution": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "contribution": {
+      "type": "number",
+      "title": "Contribution"
+     },
+     "from_other_domain": {
+      "type": "boolean",
+      "title": "From Other Domain"
+     }
+    },
+    "type": "object",
+    "required": [
+     "tag",
+     "contribution",
+     "from_other_domain"
+    ],
+    "title": "TagContribution"
+   },
+   "TagStrength": {
+    "properties": {
+     "tag": {
+      "type": "string",
+      "title": "Tag"
+     },
+     "score": {
+      "type": "number",
+      "title": "Score"
+     },
+     "average": {
+      "type": "number",
+      "title": "Average"
+     }
+    },
+    "type": "object",
+    "required": [
+     "tag",
+     "score",
+     "average"
+    ],
+    "title": "TagStrength"
+   },
+   "ValidationError": {
+    "properties": {
+     "loc": {
+      "items": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "integer"
+        }
+       ]
+      },
+      "type": "array",
+      "title": "Location"
+     },
+     "msg": {
+      "type": "string",
+      "title": "Message"
+     },
+     "type": {
+      "type": "string",
+      "title": "Error Type"
+     },
+     "input": {
+      "title": "Input"
+     },
+     "ctx": {
+      "type": "object",
+      "title": "Context"
+     }
+    },
+    "type": "object",
+    "required": [
+     "loc",
+     "msg",
+     "type"
+    ],
+    "title": "ValidationError"
+   }
+  }
+ }
+}

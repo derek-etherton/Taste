@@ -1,0 +1,31 @@
+[project]
+name = "taste"
+version = "0.2.0"
+description = "Person-centred film and book recommender: model and HTTP API"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "numpy",
+    "pandas",
+    "pillow",
+    "pydantic-settings",
+    "python-multipart",  # photo uploads
+    "rapidfuzz",
+    "truststore",  # OS certificate store for the dataset download
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = ["httpx", "pytest"]
+data = ["duckdb"]  # scripts/openlibrary.py
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["taste*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]  # tests import the source adapters too

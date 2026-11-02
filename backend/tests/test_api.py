@@ -1,7 +1,9 @@
 """The HTTP API, end to end in-process: a temporary profile store and a stand-in vision model."""
 
 import io
-import time
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,9 +19,7 @@ SHELF = [Spine("The Hobbit", "Tolkien", Where(0, 2, 0.2)), Spine("Pride and Prej
          Spine("A Book Nobody Has Heard Of", "Jo Bloggs", Where(1, 2, 0.5))]
 
 
-def reader(image, progress):
-    progress(0, 2)
-    progress(2, 2)
+def reader(image):
     return SHELF
 
 
@@ -32,7 +32,6 @@ def engine(tmp_path_factory, cats):  # cats: skips the module if the data isn't 
 
 @pytest.fixture
 def client(engine):
-    engine.jobs.clear()
     c = TestClient(create_app(engine, auth_per_minute=1000))
     sign_in_as_guest(c)  # every test starts with a new, empty profile
     return c
@@ -42,6 +41,10 @@ def photo() -> bytes:
     out = io.BytesIO()
     Image.new("RGB", (1200, 900), "white").save(out, format="JPEG")
     return out.getvalue()
+
+
+def scan(client, data=None, name="shelf.jpg"):
+    return client.post("/me/shelf-scans", files={"photo": (name, photo() if data is None else data, "image/jpeg")})
 
 
 def test_basics(client):
@@ -123,49 +126,41 @@ def test_profile(client, cats):
     assert p["domains"][0]["rated"] == 3 and p["domains"][0]["claims"]["respond_to"]
 
 
-def poll(client):
-    for _ in range(100):
-        scan = client.get("/me/shelf-scan").json()
-        if scan["status"] != "running":
-            return scan
-        time.sleep(0.05)
-    raise AssertionError("scan never finished")
-
-
 def test_shelf_scan(client, cats):
     assert client.get("/me/shelf-scan").json()["status"] == "none"
     assert client.get("/me/shelf-scan").json().get("image_url") is None
-    r = client.post("/me/shelf-scans", files={"photo": ("shelf.jpg", photo(), "image/jpeg")})
-    assert r.status_code == 202 and r.json()["status"] == "running"
-    scan = poll(client)
-    assert scan["status"] == "done" and scan["photo_name"] == "shelf.jpg"
-    assert {b["title"] for b in scan["books"]} == {"The Hobbit", "Pride and Prejudice"}
-    hobbit = next(b for b in scan["books"] if b["title"] == "The Hobbit")
+    r = scan(client)  # one request: it answers with the results
+    assert r.status_code == 200
+    result = r.json()
+    assert result["status"] == "done" and result["photo_name"] == "shelf.jpg"
+    assert {b["title"] for b in result["books"]} == {"The Hobbit", "Pride and Prejudice"}
+    hobbit = next(b for b in result["books"] if b["title"] == "The Hobbit")
     assert hobbit["location"] == "Top shelf, on the left"
-    assert [s["title"] for s in scan["unmatched"]] == ["A Book Nobody Has Heard Of"]
-    image = client.get(scan["image_url"])  # a signed link: works without the session
+    assert [s["title"] for s in result["unmatched"]] == ["A Book Nobody Has Heard Of"]
+    saved = client.get("/me/shelf-scan").json()  # and it's kept
+    assert saved["books"] == result["books"]
+    image = client.get(saved["image_url"])  # a signed link: works without the session
     assert image.headers["content-type"] == "image/jpeg"
     anonymous = TestClient(client.app)
-    assert anonymous.get(scan["image_url"]).status_code == 200
-    assert anonymous.get(scan["image_url"].replace("sig=", "sig=0")).status_code == 403
+    assert anonymous.get(saved["image_url"]).status_code == 200
+    assert anonymous.get(saved["image_url"].replace("sig=", "sig=0")).status_code == 403
     # Results are ranked for whoever asks: the saved readings, re-ranked on their ratings.
     client.put(f"/me/ratings/{find(cats['book'], 'Emma')}", json={"value": 1})
-    assert poll(client)["books"][0]["title"] == "Pride and Prejudice"
+    assert client.get("/me/shelf-scan").json()["books"][0]["title"] == "Pride and Prejudice"
 
 
 def test_failed_scan_keeps_the_last_good_one(client, engine):
-    client.post("/me/shelf-scans", files={"photo": ("shelf.jpg", photo(), "image/jpeg")})
-    assert poll(client)["status"] == "done"
+    assert scan(client).status_code == 200
 
-    def broken(image, progress):
+    def broken(image):
         raise LLMError("Ollama doesn't have qwen3-vl:8b-instruct")
 
     engine.reader = broken
     try:
-        client.post("/me/shelf-scans", files={"photo": ("other.jpg", photo(), "image/jpeg")})
-        scan = poll(client)
-        assert scan["status"] == "failed" and "qwen3-vl" in scan["error"]
-        assert scan["photo_name"] == "shelf.jpg" and scan["books"]  # the previous scan is still shown
+        r = scan(client, name="other.jpg")
+        assert r.status_code == 422 and "qwen3-vl" in r.json()["detail"]
+        saved = client.get("/me/shelf-scan").json()
+        assert saved["photo_name"] == "shelf.jpg" and saved["books"]  # the previous scan is still there
     finally:
         engine.reader = reader
 
@@ -207,3 +202,63 @@ def test_books_only_by_default(tmp_path, cats):
     assert c.get("/me/film/items").status_code == 404
     assert c.get("/genomes").status_code == 404 and c.put("/genomes/book", json={"genome": "x"}).status_code in (404, 405)
     assert c.get("/me/profile").json()["shared"] is None  # nothing carries over with one domain
+
+
+def test_shelf_scans_run_side_by_side(engine):
+    """People's scans don't queue behind each other: both readers are in flight at once."""
+    both = threading.Barrier(2, timeout=5)
+
+    def slow(image):
+        both.wait()  # breaks (and the scan fails) unless the other scan is running too
+        return SHELF
+
+    engine.reader = slow
+    try:
+        with TestClient(create_app(engine, auth_per_minute=1000)) as app:  # one event loop, as in production
+            tokens = [app.post("/auth/guest", headers={"X-Taste-Client": "native"}).json()["token"] for _ in range(2)]
+            with ThreadPoolExecutor(2) as people:
+                codes = list(people.map(lambda t: app.post(
+                    "/me/shelf-scans", headers={"Authorization": f"Bearer {t}"},
+                    files={"photo": ("s.jpg", photo(), "image/jpeg")}).status_code, tokens))
+        assert codes == [200, 200]
+    finally:
+        engine.reader = reader
+
+
+@pytest.mark.filterwarnings("ignore::PIL.Image.DecompressionBombWarning")  # the point of the test
+def test_shelf_scan_limits(client):
+    big = io.BytesIO()
+    Image.new("1", (7000, 7000)).save(big, format="PNG")  # 49 MP: a tiny file that decodes huge
+    assert scan(client, b"x" * (15 * 1024 * 1024 + 1)).status_code == 413
+    assert scan(client, b"not a photo").status_code == 422
+    assert "too large" in scan(client, big.getvalue()).json()["detail"]
+    for _ in range(5):
+        assert scan(client).status_code == 200
+    r = scan(client)
+    assert r.status_code == 429 and "5 shelves an hour" in r.json()["detail"]
+
+
+def test_parallel_uploads_cant_pass_the_hourly_limit(engine):
+    """Photos over 1 MB are spooled to disk, so reading them lets other requests run; the limit is
+    checked and the scan logged after that, with nothing in between."""
+    noise = io.BytesIO()
+    Image.frombytes("RGB", (1000, 800), os.urandom(1000 * 800 * 3)).save(noise, format="PNG")  # ~2.4 MB
+    with TestClient(create_app(engine, auth_per_minute=1000)) as app:
+        token = app.post("/auth/guest", headers={"X-Taste-Client": "native"}).json()["token"]
+        upload = lambda _: app.post("/me/shelf-scans", headers={"Authorization": f"Bearer {token}"},
+                                    files={"photo": ("s.png", noise.getvalue(), "image/png")}).status_code
+        with ThreadPoolExecutor(12) as people:
+            codes = list(people.map(upload, range(12)))
+    assert sorted(codes) == [200] * 5 + [429] * 7
+
+
+def test_failed_scan_hides_internal_errors(client, engine):
+    def broken(image):
+        raise RuntimeError("psycopg.OperationalError: connection to /var/run/secret failed")
+
+    engine.reader = broken
+    try:
+        detail = scan(client).json()["detail"]
+        assert "psycopg" not in detail and "try again" in detail
+    finally:
+        engine.reader = reader

@@ -74,7 +74,7 @@ function LinkRow({ title, url, first }: { title: string; url: string; first?: bo
       {!first && <Separator />}
       <Pressable
         accessibilityRole="link"
-        onPress={() => Linking.openURL(url)}
+        onPress={() => /^https?:\/\//i.test(url) && Linking.openURL(url)} // links come from editable Open Library data
         style={({ pressed }) => [styles.linkRow, pressed && { backgroundColor: theme.fill }]}>
         <ThemedText type="body" style={[styles.flex, { color: theme.accent }]}>
           {title}

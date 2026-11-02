@@ -153,15 +153,8 @@ class Spine(BaseModel):
     author: str | None
 
 
-class ScanProgress(BaseModel):
-    done: int
-    total: int
-
-
 class ShelfScan(BaseModel):
-    status: Literal["none", "running", "done", "failed"]
-    progress: ScanProgress | None = None  # while running
-    error: str | None = None  # when failed
+    status: Literal["none", "done"]
     photo_name: str | None = None
     scanned: str | None = None
     books: list[ItemCard] = []  # recognised books, best for this user first, with locations
@@ -179,18 +172,21 @@ class Me(BaseModel):
 
 
 class SignedIn(BaseModel):
-    token: str  # for phones (Authorization: Bearer); the web app uses the HttpOnly cookie instead
+    # Only for the native app (X-Taste-Client: native), which keeps it in the Keychain/Keystore and
+    # sends it as a bearer token. The web app gets an HttpOnly cookie instead, so no page script
+    # ever holds a session token.
+    token: str | None = None
     user: Me
 
 
 class AppleIn(BaseModel):
-    identity_token: str
-    name: str | None = None  # Apple only shares the name on the first sign-in, in the app
+    identity_token: str = Field(max_length=8192)
+    name: str | None = Field(None, max_length=200)  # Apple only shares the name on the first sign-in, in the app
 
 
 class GoogleIn(BaseModel):
-    id_token: str
+    id_token: str = Field(max_length=8192)
 
 
 class DevIn(BaseModel):
-    email: str
+    email: str = Field(max_length=320)

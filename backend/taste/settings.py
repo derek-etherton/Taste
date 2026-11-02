@@ -5,6 +5,7 @@ Field names map to upper-case variables: OLLAMA_URL, OLLAMA_MODEL, TASTE_DATA_DI
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = Field(None, validation_alias="ANTHROPIC_API_KEY")
     shelf_model: str = Field("claude-sonnet-5-5", validation_alias="TASTE_SHELF_MODEL")
     shelf_effort: str = Field("medium", validation_alias="TASTE_SHELF_EFFORT")  # low/medium/high: depth vs cost
+    shelf_scans_per_hour: int = Field(5, validation_alias="TASTE_SHELF_SCANS_PER_HOUR")  # per user: each costs money
 
     # Local LLM server (Describe Me, Shelf scan without an Anthropic key)
     ollama_url: str = "http://localhost:11434"
@@ -40,6 +42,10 @@ class Settings(BaseSettings):
     # API. The web app signs in with a cookie, so CORS lists its origins explicitly (never "*"):
     # a JSON list in the environment, e.g. '["https://taste.app"]'.
     cors_origins: list[str] = ["http://localhost:8081"]
+
+    # "development" on your own machine only: allows TASTE_DEV_LOGIN and running without
+    # TASTE_SECRET. Anything else is production, and the API refuses to start with those.
+    env: Literal["development", "production"] = Field("production", validation_alias="TASTE_ENV")
 
     # Accounts (taste/api/auth.py). The database: Postgres, e.g. postgresql+psycopg://taste@localhost/taste
     database_url: str | None = Field(None, validation_alias="TASTE_DATABASE_URL")

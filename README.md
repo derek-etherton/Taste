@@ -39,20 +39,23 @@ Settings come from the environment or the repo's `.env` (see `backend/taste/sett
 People sign in with **Apple** (iOS) or **Google**, or tap **Continue without an account**. That makes a guest: a real but anonymous profile, kept by this device's session. A guest who signs in later keeps their ratings. If the Apple or Google account already has a profile, the guest's ratings merge into it, with the account's own ratings winning.
 
 - **Sessions:** a random 256-bit token. The database stores only its sha256.
-  - **Phones** keep the token in the iOS Keychain or Android Keystore (`expo-secure-store`) and send it as `Authorization: Bearer`.
-  - **The web app** gets it as an HttpOnly, Secure, SameSite=Lax cookie that page scripts can't read. So in production the API and the web app must share a site (e.g. `taste.app` and `api.taste.app`), with that origin in `CORS_ORIGINS`.
+  - **Phones:** the native app (`X-Taste-Client: native`) gets the token in the sign-in response. It keeps it in the iOS Keychain or Android Keystore (`expo-secure-store`) and sends it as `Authorization: Bearer`.
+  - **The web app** never sees a token: only an HttpOnly, Secure, SameSite=Lax cookie that page scripts can't read. So in production the API and the web app must share a site (e.g. `taste.app` and `api.taste.app`), with that origin in `CORS_ORIGINS`.
   - Sessions expire after 90 days unused. Signing in ends the session the request came with. Sign Out ends one session; `POST /auth/logout?everywhere=true` ends all of them.
   - **Delete Account** removes the user and everything they own, as the App Store requires.
-  - `/auth/*` is rate-limited per IP. `scripts/clean_up.py`, run daily, deletes guests unseen for 180 days.
+  - `/auth/*` is rate-limited per IP. Behind a proxy, set `FORWARDED_ALLOW_IPS` (uvicorn) to the proxy's address or network so the client IP comes from `X-Forwarded-For`; never `*`.
+  - `scripts/clean_up.py`, run daily, deletes guests unseen for 180 days.
+  - **Startup checks:** unless `TASTE_ENV=development`, the API refuses to start with `TASTE_DEV_LOGIN` on, or without `TASTE_SECRET`.
 - **Shelf photos** are served from signed links that expire after an hour, because an `<Image>` can't send the session.
 - **The database** is Postgres. The schema is in `taste/storage/db.py`, and migrations live in `backend/migrations` (`alembic upgrade head`).
   - **Locally:** a portable Postgres works, nothing installed system-wide. Download the PostgreSQL Windows binaries zip and unzip it (e.g. to `D:/Tools/pgsql`). Then run, once: `initdb -D data/pg -U taste --auth=trust`, start it, and `psql -U taste -h localhost -d postgres -c "create database taste" -c "create database taste_test"`. Set `TASTE_PG_BIN` so `dev.py` starts it.
-  - **With Docker:** `docker compose up` runs Postgres and the API.
+  - **With Docker:** `docker compose up` runs the API (on localhost, for an HTTPS proxy) against the database in `TASTE_DATABASE_URL`. Add `--profile local-db` (and `POSTGRES_PASSWORD=…`) to run a Postgres beside it, not published to the network. See [docs/infrastructure.md](docs/infrastructure.md) for hosting and costs.
 - **Tests** use a throwaway SQLite file. Set `TASTE_TEST_DATABASE_URL` (e.g. `postgresql+psycopg://taste@localhost/taste_test`) to run them all against Postgres instead.
 
 | Setting | |
 |---|---|
 | `TASTE_DATABASE_URL` | e.g. `postgresql+psycopg://taste@localhost:5432/taste` (required) |
+| `TASTE_ENV` | `development` on your own machine (allows the dev sign-in, and no `TASTE_SECRET`); anything else is production |
 | `TASTE_SECRET` | signs photo links; set a long random value in production (unset: random per start) |
 | `TASTE_APPLE_CLIENT_IDS` | JSON list: the iOS bundle id (`TASTE_APP_ID` in the app's build) |
 | `TASTE_GOOGLE_CLIENT_IDS` | JSON list: the Google web, iOS and Android client ids |
@@ -77,7 +80,7 @@ People sign in with **Apple** (iOS) or **Google**, or tap **Continue without an 
 Three tabs: **Discover**, **Shelf scan** and **Profile**.
 
 - **Discover:** unrated books ranked by how well they match you. The score chip opens a breakdown: which tags push the book up or down. Tap a title for the book's page: cover, first-publication year, description, subjects, why it scores what it does, and similar books. Search covers the whole catalogue, and **Filter by tags** puts books that have the chosen tags *and* rank high for you first. The thumbs-up, minus and thumbs-down buttons rate a book (like, meh, dislike); tapping the current one again clears it.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take Photo" opens the camera on phones, including phone browsers; desktop browsers show only "Choose Photo"). Claude (Sonnet 5.5, `ANTHROPIC_API_KEY`) reads every spine in one request, at up to 2576 px on the long edge, noting each book's shelf and position (`taste/model/claude_vision.py`; `TASTE_SHELF_MODEL` and `TASTE_SHELF_EFFORT`, default `medium`, tune it). Without a key, a local Ollama vision model does it instead, finding each shelf row and reading it in pieces: `ollama pull qwen3-vl:8b-instruct`, or set `OLLAMA_VISION_MODEL`. The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in the database, with a small copy of the photo) and shown again until you scan another. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take Photo" opens the camera on phones, including phone browsers; desktop browsers show only "Choose Photo"). Claude (Sonnet 5.5, `ANTHROPIC_API_KEY`) reads every spine in one request, at up to 2576 px on the long edge, noting each book's shelf and position (`taste/model/claude_vision.py`; `TASTE_SHELF_MODEL` and `TASTE_SHELF_EFFORT`, default `medium`, tune it). Without a key, a local Ollama vision model does it instead, finding each shelf row and reading it in pieces: `ollama pull qwen3-vl:8b-instruct`, or set `OLLAMA_VISION_MODEL`. The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in the database, with a small copy of the photo) and shown again until you scan another. A scan is one request that answers with the results (20–40 s with Claude); if the app hangs up first, the scan still finishes and is saved. Each is a paid model call, so there are at most 5 an hour per user (`TASTE_SHELF_SCANS_PER_HOUR`), counted when the photo has arrived. Photos must be under 15 MB and 40 megapixels, checked before anything is decoded. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
 - **Profile.** Two tabs. **Taste**: your taste in books as an infographic: how you've rated (liked, meh, disliked), your 3 books (the best matches among books you liked or haven't read; a summary of your taste, not just recommendations), a one-line summary, and a butterfly chart of the ten tags you're most into against the ten you're least into, by how much each moves your scores (hover or tap a bar for its weight and the books you rated its way that have most of it). **Ratings**: the books you've rated.
 
 Scores in the app are pure taste match: it sends `quality=0`, so other readers' ratings don't count (the truegenome release won't carry them for every book). The API still takes `quality` (default 0.1).
@@ -97,7 +100,7 @@ Scores in the app are pure taste match: it sends `quality=0`, so other readers' 
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
 | `GET …/profile` | shared traits and each domain's own taste, with evidence |
-| `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results, with a signed `image_url` for the photo |
+| `POST …/shelf-scans` + `GET …/shelf-scan` | read a photo (multipart `photo`) and return its ranked books; then the saved scan, re-ranked, with a signed `image_url` for the photo |
 
 `backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`; it runs migrations on start.
 
@@ -117,7 +120,7 @@ taste/model/      calculations: no UI, no storage
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
   llm.py          the local Ollama client both of those use
 taste/storage/    the database: db.py (schema), sql_store.py (accounts, sessions, ratings, shelf scans)
-taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), auth (sign-in, sessions), routes, schemas
+taste/api/        FastAPI: engine (catalogues, cached models, shelf scans), auth (sign-in, sessions), routes, schemas
 taste/settings.py settings from the environment / .env
 scripts/
   prepare_data.py     prepare_data.py <domain>
@@ -183,5 +186,5 @@ Open Library publishes full dumps monthly, about two days after month end (archi
 - **Quality leaks into taste.** Tags like "oscar (best actor)" and "inspirational" track acclaim as much as taste.
 - **Source tag noise.** Some single tags are unreliable, e.g. "race" on a racing anime, or "cia" on *The Shining*.
 - **Book years** are often the year of a later edition, not first publication.
-- **Shelf-scan jobs and the sign-in rate limit live in the API process's memory.** A restart loses a running scan, and running several API instances needs a shared queue (e.g. SQS) and limiter first.
+- **The sign-in rate limit lives in the API process's memory,** and the hourly scan limit is only race-free within one process. Running several API instances needs both in the database first. A restart cuts off scans in progress (the app shows an error; the limit counts them).
 - **Apple sign-in is iOS-only,** and deleting an account doesn't yet revoke its Apple token (that needs an Apple signing key).

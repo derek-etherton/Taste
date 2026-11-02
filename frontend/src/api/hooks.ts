@@ -117,13 +117,11 @@ export function useProfile(user: string) {
   });
 }
 
-/** The latest shelf scan; polled every 2 s while one is running. */
+/** The latest shelf scan. */
 export function useScan(user: string, quality: number) {
   return useQuery({
     queryKey: [user, 'scan', quality],
-    queryFn: () =>
-      unwrap(api.GET('/me/shelf-scan', { params: { query: { quality } } })),
-    refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
+    queryFn: () => unwrap(api.GET('/me/shelf-scan', { params: { query: { quality } } })),
   });
 }
 
@@ -132,8 +130,9 @@ export function scanImageUrl(imageUrl: string | null | undefined): string | null
   return imageUrl ? `${API_URL}${imageUrl}` : null;
 }
 
-/** Upload a photo and start a scan. Multipart bodies differ: a File on web, {uri, name, type} on native. */
-export function useStartScan(user: string) {
+/** Upload a photo and read it: one request (20-40 s) that answers with the scan, which is then the
+ * latest. Multipart bodies differ: a File on web, {uri, name, type} on native. */
+export function useStartScan(user: string, quality: number) {
   const client = useQueryClient();
   return useMutation({
     mutationFn: async (photo: ImagePickerAsset) => {
@@ -144,10 +143,13 @@ export function useStartScan(user: string) {
       } else {
         form.append('photo', { uri: photo.uri, name, type: photo.mimeType ?? 'image/jpeg' } as unknown as Blob);
       }
-      const response = await authFetch('/me/shelf-scans', { method: 'POST', body: form });
+      const response = await authFetch(`/me/shelf-scans?quality=${quality}`, { method: 'POST', body: form });
       if (!response.ok) throw new Error(errorMessage(await response.json().catch(() => undefined), response));
       return (await response.json()) as ShelfScan;
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: [user, 'scan'] }),
+    onSuccess: (scan) => {
+      client.setQueryData([user, 'scan', quality], scan);
+      void client.invalidateQueries({ queryKey: [user, 'scan'] }); // other qualities, if any
+    },
   });
 }

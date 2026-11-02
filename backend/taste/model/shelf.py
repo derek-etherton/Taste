@@ -26,6 +26,8 @@ MAX_SIDE = 1600  # px; the overview used to find shelf rows is downscaled to thi
 PIECE_HEIGHT = 320  # px; each piece of a row is scaled to about this height so spine text is legible
 PIECE_ASPECT = 3.2  # max width:height of a piece; wider rows are cut into overlapping pieces
 MATCH_THRESHOLD = 85  # 0-100; below this a spine counts as not in the catalogue
+MAX_PIXELS = 40_000_000  # a 40 MP photo is plenty; more is a "decompression bomb" (tiny file, huge image)
+Image.MAX_IMAGE_PIXELS = MAX_PIXELS  # Pillow refuses to decode anything far beyond this
 
 # Small vision models loop ("The Art of War", "The Art of War", ...) on a crowded image at
 # temperature 0; a little randomness, a repeat penalty and a token cap stop that.
@@ -84,6 +86,18 @@ class Match:
 
 
 Reader = Callable[[bytes], list[Spine]]
+
+
+def check_photo(image_bytes: bytes) -> None:
+    """Refuse anything that isn't a photo of a sensible size, reading only its header (so a
+    decompression bomb is never decoded). Raises LLMError with a message for the user."""
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as image:
+            width, height = image.size
+    except Exception:
+        raise LLMError("That file isn't a photo we can read (JPEG, PNG, HEIC exported as JPEG, ...).") from None
+    if width * height > MAX_PIXELS:
+        raise LLMError(f"That photo is too large ({width}×{height}); one under 40 megapixels is plenty.")
 
 
 def load_image(image_bytes: bytes) -> Image.Image:

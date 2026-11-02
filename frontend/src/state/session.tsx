@@ -2,8 +2,9 @@
  * signed in with Apple or Google. Until there's a session the app shows the sign-in screen. */
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { Platform } from 'react-native';
 
-import { api, type Me, onSessionLost, setSessionToken, type SignedIn, unwrap } from '@/api/client';
+import { api, authFetch, type Me, onSessionLost, setSessionToken, type SignedIn, unwrap } from '@/api/client';
 import { readToken, writeToken } from '@/state/session-storage';
 
 type Status = 'loading' | 'signedOut' | 'signedIn';
@@ -58,8 +59,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const start = useCallback(
     async (call: Promise<{ data?: SignedIn; error?: unknown; response: Response }>) => {
       const out = await unwrap(call);
-      setSessionToken(out.token);
-      await writeToken(out.token);
+      if (Platform.OS !== 'web' && out.token) {
+        // Only the native app gets a token; on web the session is an HttpOnly cookie.
+        setSessionToken(out.token);
+        await writeToken(out.token);
+      }
       queries.clear(); // a guest who signed in may now be someone else (a merged account)
       setUser(out.user);
       setStatus('signedIn');
@@ -74,9 +78,22 @@ export function SessionProvider({ children }: PropsWithChildren) {
       continueAsGuest: () => start(api.POST('/auth/guest')),
       signInWithApple: (identityToken, name) => start(api.POST('/auth/apple', { body: { identity_token: identityToken, name } })),
       signInWithGoogle: (idToken) => start(api.POST('/auth/google', { body: { id_token: idToken } })),
-      signInDev: (email) => start(api.POST('/auth/dev', { body: { email } })),
+      // Not in the API spec (development only), so a plain request.
+      signInDev: (email) =>
+        start(
+          authFetch('/auth/dev', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          }).then(async (response) => {
+            const body = await response.json().catch(() => undefined);
+            return response.ok ? { data: body as SignedIn, response } : { error: body, response };
+          }),
+        ),
+      // Only forgets the session once the API has ended it: on web the cookie would otherwise
+      // stay valid while the app looked signed out.
       signOut: async (everywhere = false) => {
-        await api.POST('/auth/logout', { params: { query: { everywhere } } }).catch(() => {});
+        await unwrap(api.POST('/auth/logout', { params: { query: { everywhere } } }));
         forget();
       },
       deleteAccount: async () => {

@@ -9,7 +9,7 @@ statement.
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import JSON, DateTime, ForeignKey, LargeBinary, SmallInteger, String, Text, create_engine, event
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, LargeBinary, SmallInteger, String, Text, create_engine, event
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -76,6 +76,15 @@ class ShelfScanRow(Base):
     scanned: Mapped[str] = mapped_column(String(32))  # ISO timestamp
     spines: Mapped[list] = mapped_column(JSONType)
     image: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class ScanLog(Base):
+    """When each shelf scan was started: the per-user hourly limit counts these."""
+    __tablename__ = "scan_log"
+    # SQLite (tests) only auto-numbers a plain INTEGER primary key.
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer(), "sqlite"), primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = owner()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
 
 class DescriptionRow(Base):

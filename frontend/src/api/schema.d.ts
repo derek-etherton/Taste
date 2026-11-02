@@ -58,26 +58,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/dev": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Dev
-         * @description Local development only (TASTE_DEV_LOGIN): sign in as any email, no proof asked.
-         */
-        post: operations["dev_auth_dev_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/logout": {
         parameters: {
             query?: never;
@@ -321,10 +301,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start Scan
-         * @description Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results.
+         * Scan Shelf
+         * @description Read a shelf photo and return its books, ranked for the user; it becomes their saved scan
+         *     (GET /me/shelf-scan). At most TASTE_SHELF_SCANS_PER_HOUR an hour: each is a paid model call.
+         *     If the app hangs up first the scan still finishes and is saved.
          */
-        post: operations["start_scan_me_shelf_scans_post"];
+        post: operations["scan_shelf_me_shelf_scans_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -340,8 +322,7 @@ export interface paths {
         };
         /**
          * Get Scan
-         * @description The latest scan: running with progress, failed with an error, or done with ranked books,
-         *     with a link to its photo (valid for an hour).
+         * @description The latest scan, with ranked books and a link to its photo (valid for an hour).
          */
         get: operations["get_scan_me_shelf_scan_get"];
         put?: never;
@@ -399,8 +380,8 @@ export interface components {
             /** From Other Domain */
             from_other_domain: boolean;
         };
-        /** Body_start_scan_me_shelf_scans_post */
-        Body_start_scan_me_shelf_scans_post: {
+        /** Body_scan_shelf_me_shelf_scans_post */
+        Body_scan_shelf_me_shelf_scans_post: {
             /** Photo */
             photo: string;
         };
@@ -455,11 +436,6 @@ export interface components {
             respond_to: components["schemas"]["Claim"][];
             /** Push Back On */
             push_back_on: components["schemas"]["Claim"][];
-        };
-        /** DevIn */
-        DevIn: {
-            /** Email */
-            email: string;
         };
         /** Domain */
         Domain: {
@@ -642,23 +618,13 @@ export interface components {
                 [key: string]: number;
             };
         };
-        /** ScanProgress */
-        ScanProgress: {
-            /** Done */
-            done: number;
-            /** Total */
-            total: number;
-        };
         /** ShelfScan */
         ShelfScan: {
             /**
              * Status
              * @enum {string}
              */
-            status: "none" | "running" | "done" | "failed";
-            progress?: components["schemas"]["ScanProgress"] | null;
-            /** Error */
-            error?: string | null;
+            status: "none" | "done";
             /** Photo Name */
             photo_name?: string | null;
             /** Scanned */
@@ -679,7 +645,7 @@ export interface components {
         /** SignedIn */
         SignedIn: {
             /** Token */
-            token: string;
+            token?: string | null;
             user: components["schemas"]["Me"];
         };
         /** Spine */
@@ -792,39 +758,6 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["GoogleIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignedIn"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    dev_auth_dev_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DevIn"];
             };
         };
         responses: {
@@ -1246,21 +1179,24 @@ export interface operations {
             };
         };
     };
-    start_scan_me_shelf_scans_post: {
+    scan_shelf_me_shelf_scans_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Weight on general quality; 0 = pure taste match */
+                quality?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_start_scan_me_shelf_scans_post"];
+                "multipart/form-data": components["schemas"]["Body_scan_shelf_me_shelf_scans_post"];
             };
         };
         responses: {
             /** @description Successful Response */
-            202: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

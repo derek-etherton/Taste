@@ -100,45 +100,6 @@
     }
    }
   },
-  "/auth/dev": {
-   "post": {
-    "summary": "Dev",
-    "description": "Local development only (TASTE_DEV_LOGIN): sign in as any email, no proof asked.",
-    "operationId": "dev_auth_dev_post",
-    "requestBody": {
-     "content": {
-      "application/json": {
-       "schema": {
-        "$ref": "#/components/schemas/DevIn"
-       }
-      }
-     },
-     "required": true
-    },
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/SignedIn"
-        }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
   "/auth/logout": {
    "post": {
     "summary": "Logout",
@@ -745,21 +706,37 @@
   },
   "/me/shelf-scans": {
    "post": {
-    "summary": "Start Scan",
-    "description": "Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results.",
-    "operationId": "start_scan_me_shelf_scans_post",
+    "summary": "Scan Shelf",
+    "description": "Read a shelf photo and return its books, ranked for the user; it becomes their saved scan\n(GET /me/shelf-scan). At most TASTE_SHELF_SCANS_PER_HOUR an hour: each is a paid model call.\nIf the app hangs up first the scan still finishes and is saved.",
+    "operationId": "scan_shelf_me_shelf_scans_post",
+    "parameters": [
+     {
+      "name": "quality",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "number",
+       "maximum": 1,
+       "minimum": 0,
+       "description": "Weight on general quality; 0 = pure taste match",
+       "default": 0.1,
+       "title": "Quality"
+      },
+      "description": "Weight on general quality; 0 = pure taste match"
+     }
+    ],
     "requestBody": {
+     "required": true,
      "content": {
       "multipart/form-data": {
        "schema": {
-        "$ref": "#/components/schemas/Body_start_scan_me_shelf_scans_post"
+        "$ref": "#/components/schemas/Body_scan_shelf_me_shelf_scans_post"
        }
       }
-     },
-     "required": true
+     }
     },
     "responses": {
-     "202": {
+     "200": {
       "description": "Successful Response",
       "content": {
        "application/json": {
@@ -785,7 +762,7 @@
   "/me/shelf-scan": {
    "get": {
     "summary": "Get Scan",
-    "description": "The latest scan: running with progress, failed with an error, or done with ranked books,\nwith a link to its photo (valid for an hour).",
+    "description": "The latest scan, with ranked books and a link to its photo (valid for an hour).",
     "operationId": "get_scan_me_shelf_scan_get",
     "parameters": [
      {
@@ -900,12 +877,14 @@
     "properties": {
      "identity_token": {
       "type": "string",
+      "maxLength": 8192,
       "title": "Identity Token"
      },
      "name": {
       "anyOf": [
        {
-        "type": "string"
+        "type": "string",
+        "maxLength": 200
        },
        {
         "type": "null"
@@ -975,7 +954,7 @@
     ],
     "title": "Because"
    },
-   "Body_start_scan_me_shelf_scans_post": {
+   "Body_scan_shelf_me_shelf_scans_post": {
     "properties": {
      "photo": {
       "type": "string",
@@ -987,7 +966,7 @@
     "required": [
      "photo"
     ],
-    "title": "Body_start_scan_me_shelf_scans_post"
+    "title": "Body_scan_shelf_me_shelf_scans_post"
    },
    "BookInfo": {
     "properties": {
@@ -1186,19 +1165,6 @@
     ],
     "title": "Claims"
    },
-   "DevIn": {
-    "properties": {
-     "email": {
-      "type": "string",
-      "title": "Email"
-     }
-    },
-    "type": "object",
-    "required": [
-     "email"
-    ],
-    "title": "DevIn"
-   },
    "Domain": {
     "properties": {
      "id": {
@@ -1390,6 +1356,7 @@
     "properties": {
      "id_token": {
       "type": "string",
+      "maxLength": 8192,
       "title": "Id Token"
      }
     },
@@ -1761,56 +1728,15 @@
     ],
     "title": "Ratings"
    },
-   "ScanProgress": {
-    "properties": {
-     "done": {
-      "type": "integer",
-      "title": "Done"
-     },
-     "total": {
-      "type": "integer",
-      "title": "Total"
-     }
-    },
-    "type": "object",
-    "required": [
-     "done",
-     "total"
-    ],
-    "title": "ScanProgress"
-   },
    "ShelfScan": {
     "properties": {
      "status": {
       "type": "string",
       "enum": [
        "none",
-       "running",
-       "done",
-       "failed"
+       "done"
       ],
       "title": "Status"
-     },
-     "progress": {
-      "anyOf": [
-       {
-        "$ref": "#/components/schemas/ScanProgress"
-       },
-       {
-        "type": "null"
-       }
-      ]
-     },
-     "error": {
-      "anyOf": [
-       {
-        "type": "string"
-       },
-       {
-        "type": "null"
-       }
-      ],
-      "title": "Error"
      },
      "photo_name": {
       "anyOf": [
@@ -1871,7 +1797,14 @@
    "SignedIn": {
     "properties": {
      "token": {
-      "type": "string",
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
       "title": "Token"
      },
      "user": {
@@ -1880,7 +1813,6 @@
     },
     "type": "object",
     "required": [
-     "token",
      "user"
     ],
     "title": "SignedIn"

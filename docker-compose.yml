@@ -1,14 +1,20 @@
-# Postgres and the API, as they'd run in production (local development can use them too):
-#   docker compose up
-# The API reads the rest of its settings from .env (TASTE_SECRET, sign-in client ids, ...).
+# The API as it runs on a server, with its database elsewhere (Lightsail's managed Postgres, see
+# docs/infrastructure.md): set TASTE_DATABASE_URL in .env, then
+#   docker compose up -d
+# To run a throwaway Postgres alongside it instead (trying it out, or everything on one machine):
+#   POSTGRES_PASSWORD=... docker compose --profile local-db up -d
+# with TASTE_DATABASE_URL=postgresql+psycopg://taste:<that password>@db:5432/taste in .env. That
+# database isn't published to the network: only the API reaches it, over compose's own network.
+# The API reads the rest of its settings from .env (TASTE_SECRET, sign-in client ids, ...); never
+# use a development .env here (TASTE_DEV_LOGIN: the API refuses to start with it anyway).
 services:
   db:
+    profiles: [local-db]
     image: postgres:16
     environment:
       POSTGRES_USER: taste
-      POSTGRES_PASSWORD: taste
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}  # postgres itself refuses to start without one
       POSTGRES_DB: taste
-    ports: ["5432:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "taste"]
@@ -17,11 +23,10 @@ services:
   api:
     build: backend
     env_file: .env
-    environment:
-      TASTE_DATABASE_URL: postgresql+psycopg://taste:taste@db:5432/taste
-    ports: ["8000:8000"]
-    volumes: ["./data:/data"]
+    ports: ["127.0.0.1:8000:8000"]  # behind your HTTPS proxy on the same machine
+    volumes: ["./data:/data:ro"]
+    restart: unless-stopped
     depends_on:
-      db: { condition: service_healthy }
+      db: { condition: service_healthy, required: false }  # only when the local-db profile is on
 volumes:
   pgdata:

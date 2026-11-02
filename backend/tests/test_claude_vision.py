@@ -41,11 +41,9 @@ def test_one_request_per_photo():
         {"title": "Dune", "author": "Frank Herbert", "shelf": 1, "x": 500},
         {"title": "Emma", "author": None, "shelf": 2, "x": 2400},
     ]})
-    steps = []
-    out = claude_vision(photo(), progress=lambda d, t: steps.append((d, t)), claude=fake)
+    out = claude_vision(photo(), claude=fake)
     assert [(s.title, s.author) for s in out] == [("Dune", "Frank Herbert"), ("Emma", None)]
     assert out[0].where == Where(0, 2, 500 / MAX_SIDE) and out[1].where == Where(1, 2, 2400 / MAX_SIDE)
-    assert steps == [(0, 1), (1, 1)]
 
     sent = fake.sent
     assert sent["model"] == "claude-sonnet-5-5" and sent["output_config"]["effort"] == "medium"

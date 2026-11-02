@@ -1,8 +1,8 @@
 """Accounts: sign in with Apple or Google, or carry on as a guest; sessions; deleting an account.
 
-A session is a random token. Phones keep it in the Keychain/Keystore and send it as
-`Authorization: Bearer`; the web app gets it as an HttpOnly cookie, which page scripts can't
-read. Both reach `current_user`. Apple and Google prove who someone is with a signed ID token,
+A session is a random token. The native app (X-Taste-Client: native) gets it in the response,
+keeps it in the Keychain/Keystore and sends it as `Authorization: Bearer`; the web app only ever
+gets it as an HttpOnly cookie, which page scripts can't read. Both reach `current_user`. Apple and Google prove who someone is with a signed ID token,
 checked here against their published keys; we never see a password.
 
 A guest is a real (anonymous) profile; signing in from a guest session keeps its ratings
@@ -11,6 +11,7 @@ A guest is a real (anonymous) profile; signing in from a guest session keeps its
 
 import hashlib
 import hmac
+import logging
 import secrets
 import threading
 import time
@@ -33,6 +34,7 @@ GOOGLE_KEYS = "https://www.googleapis.com/oauth2/v3/certs"
 GOOGLE_ISSUERS = ["accounts.google.com", "https://accounts.google.com"]
 
 router = APIRouter()
+log = logging.getLogger("taste.auth")
 
 
 def engine(request: Request) -> Engine:
@@ -66,16 +68,17 @@ def current_user(user: Annotated[str | None, Depends(optional_user)]) -> str:
 Me = Annotated[str, Depends(current_user)]
 
 
-def signed_in(response: Response, e: Engine, account: Account, request: Request | None = None) -> schemas.SignedIn:
-    """A new session for the account. The one the request came with (a guest's, now upgraded or
-    merged) ends, so only the new token works."""
-    old = session_token(request) if request else None
+def signed_in(request: Request, response: Response, e: Engine, account: Account) -> schemas.SignedIn:
+    """A new session for the account: a cookie for the web, the token itself for the native app.
+    The session the request came with (a guest's, now upgraded or merged) ends."""
+    old = session_token(request)
     if old:
         e.store.end_session(old)
     token = e.store.new_session(account.id)
     response.set_cookie(COOKIE, token, max_age=int(SESSION_IDLE.total_seconds()), httponly=True,
                         secure=get_settings().cookie_secure, samesite="lax", path="/")
-    return schemas.SignedIn(token=token, user=me_out(account))
+    native = request.headers.get("x-taste-client") == "native"
+    return schemas.SignedIn(token=token if native else None, user=me_out(account))
 
 
 def me_out(a: Account) -> schemas.Me:
@@ -85,17 +88,25 @@ def me_out(a: Account) -> schemas.Me:
 # --- abuse limits -----------------------------------------------------------------------------
 
 class RateLimit:
-    """At most `per_minute` requests per client IP (in memory: one API process)."""
+    """At most `per_minute` requests per client IP (in memory: one API process).
+
+    Behind a proxy or load balancer the client IP comes from X-Forwarded-For, which uvicorn only
+    believes from the proxies in FORWARDED_ALLOW_IPS (default 127.0.0.1): set it to the proxy's
+    address or network, never "*", or clients could pick their own IP."""
 
     def __init__(self, per_minute: int):
         self.per_minute = per_minute
         self.hits: dict[str, deque] = defaultdict(deque)
         self.lock = threading.Lock()
+        self.swept = time.monotonic()
 
     def __call__(self, request: Request) -> None:
         ip = request.client.host if request.client else "?"
         now = time.monotonic()
         with self.lock:
+            if now - self.swept > 60:  # forget addresses with nothing in the last minute
+                self.hits = defaultdict(deque, {k: v for k, v in self.hits.items() if v and now - v[-1] <= 60})
+                self.swept = now
             hits = self.hits[ip]
             while hits and now - hits[0] > 60:
                 hits.popleft()
@@ -122,7 +133,8 @@ def _verify(token: str, keys_url: str, issuers: list[str], audiences: list[str],
         return jwt.decode(token, key, algorithms=["RS256"], audience=audiences, issuer=issuers,
                           options={"require": ["exp", "iat", "sub", "aud", "iss"]})
     except (jwt.PyJWTError, jwt.PyJWKClientError) as err:
-        raise HTTPException(401, f"{provider} couldn't confirm who you are ({err}).") from None
+        log.info("%s token rejected: %s", provider, err)  # details for us, not for the client
+        raise HTTPException(401, f"{provider} couldn't confirm who you are; try signing in again.") from None
 
 
 def verify_apple(token: str) -> tuple[str, str | None]:
@@ -145,30 +157,30 @@ Guest = Annotated[str | None, Depends(optional_user)]
 
 
 @router.post("/auth/guest", dependencies=[Limited])
-def guest(response: Response, e: E) -> schemas.SignedIn:
+def guest(request: Request, response: Response, e: E) -> schemas.SignedIn:
     """Continue without an account: a new anonymous profile, kept by this device's session."""
-    return signed_in(response, e, e.store.create_guest())
+    return signed_in(request, response, e, e.store.create_guest())
 
 
 @router.post("/auth/apple", dependencies=[Limited])
 def apple(body: schemas.AppleIn, request: Request, response: Response, e: E, current: Guest) -> schemas.SignedIn:
     subject, email = verify_apple(body.identity_token)
-    return signed_in(response, e, e.store.sign_in("apple", subject, email, body.name, guest=current), request)
+    return signed_in(request, response, e, e.store.sign_in("apple", subject, email, body.name, guest=current))
 
 
 @router.post("/auth/google", dependencies=[Limited])
 def google(body: schemas.GoogleIn, request: Request, response: Response, e: E, current: Guest) -> schemas.SignedIn:
     subject, email, name = verify_google(body.id_token)
-    return signed_in(response, e, e.store.sign_in("google", subject, email, name, guest=current), request)
+    return signed_in(request, response, e, e.store.sign_in("google", subject, email, name, guest=current))
 
 
-@router.post("/auth/dev", dependencies=[Limited], include_in_schema=True)
+@router.post("/auth/dev", dependencies=[Limited], include_in_schema=False)
 def dev(body: schemas.DevIn, request: Request, response: Response, e: E, current: Guest) -> schemas.SignedIn:
     """Local development only (TASTE_DEV_LOGIN): sign in as any email, no proof asked."""
     if not get_settings().dev_login:
         raise HTTPException(404, "Not found")
     email = body.email.strip().lower()
-    return signed_in(response, e, e.store.sign_in("dev", email, email, None, guest=current), request)
+    return signed_in(request, response, e, e.store.sign_in("dev", email, email, None, guest=current))
 
 
 @router.post("/auth/logout")

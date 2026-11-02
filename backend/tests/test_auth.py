@@ -29,6 +29,13 @@ def providers(monkeypatch):
     monkeypatch.setattr(get_settings(), "dev_login", False)
 
 
+def TestClient(app, **kw):  # noqa: N802: as the native app, which gets tokens to send as bearers
+    from fastapi.testclient import TestClient as Client
+    c = Client(app, **kw)
+    c.headers["X-Taste-Client"] = "native"
+    return c
+
+
 def bearer(client, token):
     client.headers["Authorization"] = f"Bearer {token}"
     client.cookies.clear()
@@ -103,7 +110,9 @@ def test_delete_account(app, engine, cats):
 
 def test_web_session_is_an_httponly_cookie(app):
     c = TestClient(app, base_url="https://testserver")  # Secure cookies need https
+    del c.headers["X-Taste-Client"]  # the web app
     r = c.post("/auth/guest")
+    assert r.json()["token"] is None  # no page script ever holds the token
     cookie = r.headers["set-cookie"]
     assert "taste_session=" in cookie and "HttpOnly" in cookie and "Secure" in cookie and "samesite=lax" in cookie.lower()
     assert c.get("/me").json()["kind"] == "guest"  # the cookie alone signs in
@@ -133,6 +142,20 @@ def test_real_token_check_rejects_garbage(app, monkeypatch):
 def test_sign_in_is_rate_limited(engine):
     c = TestClient(create_app(engine, auth_per_minute=2))
     assert [c.post("/auth/guest").status_code for _ in range(3)] == [200, 200, 429]
+
+
+def test_sign_in_input_is_bounded(app):
+    r = TestClient(app).post("/auth/apple", json={"identity_token": "apple:long", "name": "x" * 201})
+    assert r.status_code == 422
+
+
+@pytest.mark.parametrize("dev_login, secret, error", [(True, "s", "TASTE_DEV_LOGIN"), (False, None, "TASTE_SECRET")])
+def test_refuses_development_settings_in_production(dev_login, secret, error):
+    from taste.api.app import check_settings
+    from taste.settings import Settings
+    with pytest.raises(RuntimeError, match=error):  # whatever CORS_ORIGINS says
+        check_settings(Settings(_env_file=None, TASTE_ENV="production", TASTE_DEV_LOGIN=dev_login, TASTE_SECRET=secret))
+    check_settings(Settings(_env_file=None, TASTE_ENV="development", TASTE_DEV_LOGIN=True))  # fine on your machine
 
 
 def test_photo_links_expire(app):

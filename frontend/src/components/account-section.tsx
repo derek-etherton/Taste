@@ -65,7 +65,7 @@ export function AccountSection() {
         )}
       </View>
       <Separator />
-      <Row label="Sign Out" color={theme.accent} onPress={() => signOut()} />
+      <Row label="Sign Out" color={theme.accent} onPress={() => signOut().catch((err: Error) => setError(err.message))} />
       <Separator />
       <Row
         label="Delete Account"

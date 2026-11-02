@@ -2,7 +2,7 @@
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { FlatList, Platform, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, View } from 'react-native';
 
 import type { ItemCard } from '@/api/client';
 import { scanImageUrl, useScan, useStartScan } from '@/api/hooks';
@@ -23,7 +23,7 @@ export default function ShelfScan() {
   const { user, quality } = useSettings();
   const theme = useTheme();
   const scan = useScan(user, quality);
-  const start = useStartScan(user);
+  const start = useStartScan(user, quality);
   const [preview, setPreview] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [explaining, setExplaining] = useState<ItemCard | null>(null);
@@ -49,8 +49,7 @@ export default function ShelfScan() {
   }
 
   const s = scan.data;
-  const running = start.isPending || s?.status === 'running';
-  const progress = s?.progress && s.progress.total ? s.progress.done / s.progress.total : 0;
+  const running = start.isPending;
   const read = (s?.books.length ?? 0) + (s?.unmatched.length ?? 0);
   const photo = running && preview ? preview : (scanImageUrl(s?.image_url) ?? preview);
   const books = running ? [] : (s?.books ?? []);
@@ -85,7 +84,6 @@ export default function ShelfScan() {
       </View>
       {problem && <Note tone="error">{problem}</Note>}
       {start.isError && <Note tone="error">{start.error.message}</Note>}
-      {s?.status === 'failed' && <Note tone="error">{`That scan failed: ${s.error}`}</Note>}
       {scan.isError && <Note tone="error">{scan.error.message}</Note>}
 
       {(photo || running) && (
@@ -95,13 +93,9 @@ export default function ShelfScan() {
             <View style={styles.summary}>
               {running ? (
                 <>
-                  <ThemedText type="headline">
-                    {s?.progress && s.progress.total > 1
-                      ? `Reading part ${Math.min(s.progress.done + 1, s.progress.total)} of ${s.progress.total}…`
-                      : 'Reading the spines…'}
-                  </ThemedText>
-                  <View style={[styles.track, { backgroundColor: theme.fill }]}>
-                    <View style={[styles.fill, { width: `${Math.round(progress * 100)}%`, backgroundColor: theme.accent }]} />
+                  <View style={styles.reading}>
+                    <ActivityIndicator color={theme.secondaryLabel} />
+                    <ThemedText type="headline">Reading the spines…</ThemedText>
                   </View>
                   <ThemedText type="footnote" themeColor="secondaryLabel">
                     Usually under a minute.
@@ -172,8 +166,7 @@ const styles = StyleSheet.create({
   result: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three, padding: Spacing.three, alignItems: 'center' },
   photo: { width: 96, height: 128, borderRadius: Radius.field },
   summary: { flex: 1, minWidth: 200, gap: Spacing.two },
-  track: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  fill: { height: 4, borderRadius: 2 },
+  reading: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   listTitle: { paddingHorizontal: Spacing.one, paddingTop: Spacing.two },
   footer: { paddingTop: Spacing.four },
   unmatched: { paddingVertical: 11, paddingHorizontal: Spacing.three },

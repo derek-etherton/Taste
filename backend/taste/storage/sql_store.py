@@ -13,12 +13,13 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, select, update
+from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from taste.model.shelf import Spine, Where, load_image
 from taste.storage.base import Description, ShelfScan
-from taste.storage.db import DescriptionRow, Identity, Rating, Session, ShelfScanRow, User, connect, utcnow
+from taste.storage.db import DescriptionRow, Identity, Rating, ScanLog, Session, ShelfScanRow, User, connect, utcnow
 
 SESSION_IDLE = timedelta(days=90)  # a session unused this long has expired
 TOUCH_EVERY = timedelta(hours=1)  # how often a session's last use is written back
@@ -56,17 +57,22 @@ class SqlProfileStore:
 
     # --- ratings, Describe Me, shelf scan (the ProfileStore protocol) -----------------------
 
+    def _upsert(self, table, values: dict):
+        """Insert a row, or overwrite the one with the same primary key, in one statement: two
+        requests writing the same row at once (two scans, a double tap) can't both try to insert."""
+        dialect = postgresql if self.engine.dialect.name == "postgresql" else sqlite
+        keys = [c.name for c in table.__table__.primary_key]
+        insert = dialect.insert(table).values(**values)
+        return insert.on_conflict_do_update(index_elements=keys,
+                                            set_={k: v for k, v in values.items() if k not in keys})
+
     def ratings(self, user: str) -> dict[str, int]:
         with self.db() as s:
             return dict(s.execute(select(Rating.item_key, Rating.value).where(Rating.user_id == user)).all())
 
     def set_rating(self, user: str, key: str, value: int) -> dict[str, int]:
         with self.db.begin() as s:
-            row = s.get(Rating, (user, key))
-            if row:
-                row.value = value
-            else:
-                s.add(Rating(user_id=user, item_key=key, value=value))
+            s.execute(self._upsert(Rating, dict(user_id=user, item_key=key, value=value, updated_at=utcnow())))
         return self.ratings(user)
 
     def clear_rating(self, user: str, key: str) -> dict[str, int]:
@@ -100,12 +106,25 @@ class SqlProfileStore:
         thumb.thumbnail((800, 800))
         out = io.BytesIO()
         thumb.save(out, format="JPEG", quality=85)
+        photo_name = photo_name[:255]  # the client names the file
         scan = ShelfScan(scan_id, photo_name, now_iso(), spines)
         stored = [{"title": x.title, "author": x.author, "where": asdict(x.where) if x.where else None} for x in spines]
         with self.db.begin() as s:
-            s.merge(ShelfScanRow(user_id=user, id=scan_id, photo_name=photo_name, scanned=scan.scanned,
-                                 spines=stored, image=out.getvalue()))
+            s.execute(self._upsert(ShelfScanRow, dict(user_id=user, id=scan_id, photo_name=photo_name,
+                                                      scanned=scan.scanned, spines=stored, image=out.getvalue())))
         return scan
+
+    def log_scan(self, user: str) -> None:
+        """Note that the user started a scan (for the hourly limit)."""
+        with self.db.begin() as s:
+            s.add(ScanLog(user_id=user))
+
+    def scans_since(self, user: str, since: datetime) -> list[datetime]:
+        """When the user started scans since `since`, oldest first."""
+        with self.db() as s:
+            rows = s.scalars(select(ScanLog.created_at).where(ScanLog.user_id == user, ScanLog.created_at >= since)
+                             .order_by(ScanLog.created_at))
+            return [aware(t) for t in rows]
 
     def scan_image(self, user: str) -> bytes | None:
         with self.db() as s:
@@ -207,4 +226,5 @@ class SqlProfileStore:
         now = utcnow()
         with self.db.begin() as s:
             s.execute(delete(Session).where(Session.last_used_at < now - SESSION_IDLE))
+            s.execute(delete(ScanLog).where(ScanLog.created_at < now - timedelta(days=1)))
             return s.execute(delete(User).where(User.kind == "guest", User.last_seen_at < now - GUEST_IDLE)).rowcount

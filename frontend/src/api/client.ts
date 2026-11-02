@@ -6,13 +6,16 @@
  * e.g. http://192.168.1.20:8000, since "localhost" is the phone itself.
  */
 import createClient, { type Middleware } from 'openapi-fetch';
+import { Platform } from 'react-native';
 
 import type { components, paths } from './schema';
 
 export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
-/** Who's signed in. Phones send the session token as a bearer header; the web app's session is
- * an HttpOnly cookie, sent because every request includes credentials. */
+/** Who's signed in. The native app keeps the session token and sends it as a bearer header (and
+ * says it's native, so sign-in hands it the token); the web app never sees a token: its session
+ * is an HttpOnly cookie, sent because every request includes credentials. */
+const NATIVE = Platform.OS !== 'web';
 let token: string | null = null;
 let onSignedOut: () => void = () => {};
 
@@ -27,6 +30,7 @@ export function onSessionLost(handler: () => void) {
 
 const session: Middleware = {
   onRequest({ request }) {
+    if (NATIVE) request.headers.set('X-Taste-Client', 'native');
     if (token) request.headers.set('Authorization', `Bearer ${token}`);
     return request;
   },
@@ -42,6 +46,7 @@ api.use(session);
 /** fetch() for the few calls openapi-fetch can't make (multipart uploads), with the session. */
 export function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
+  if (NATIVE) headers.set('X-Taste-Client', 'native');
   if (token) headers.set('Authorization', `Bearer ${token}`);
   return fetch(`${API_URL}${path}`, { ...init, headers, credentials: 'include' }).then((r) => {
     if (r.status === 401) onSignedOut();

@@ -12,7 +12,6 @@ reply parses.
 import base64
 import io
 import json
-from typing import Callable
 
 import anthropic
 
@@ -71,13 +70,10 @@ def jpeg(image_bytes: bytes) -> tuple[str, int]:
     return base64.b64encode(out.getvalue()).decode(), image.width
 
 
-def claude_vision(image_bytes: bytes, progress: Callable[[int, int], None] | None = None,
-                  claude: anthropic.Anthropic | None = None) -> list[Spine]:
+def claude_vision(image_bytes: bytes, claude: anthropic.Anthropic | None = None) -> list[Spine]:
     """Spines read off a shelf photo, each with roughly where it is (shelf row and position)."""
     settings = get_settings()
     data, width = jpeg(image_bytes)
-    if progress:
-        progress(0, 1)
     try:
         response = (claude or client()).beta.messages.create(
             model=settings.shelf_model,
@@ -108,8 +104,6 @@ def claude_vision(image_bytes: bytes, progress: Callable[[int, int], None] | Non
         reply = json.loads(text)
     except json.JSONDecodeError:
         raise LLMError("Claude's reply couldn't be read as a list of books.") from None
-    if progress:
-        progress(1, 1)
     return spines(reply, width)
 
 

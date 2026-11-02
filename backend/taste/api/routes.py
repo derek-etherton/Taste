@@ -1,16 +1,22 @@
 """HTTP routes. Thin: validate, call the engine or model, shape the response. Everything about
 the signed-in user is under /me (auth.py says who that is)."""
 
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from starlette.concurrency import run_in_threadpool
 
 from taste.api import schemas
 from taste.api.auth import Me, check_image, image_url
 from taste.api.engine import Engine
 from taste.model import openlibrary
+from taste.model.llm import LLMError
+from taste.model.shelf import check_photo
 from taste.model.user_model import TagClaim, claims
+from taste.settings import get_settings
 
 router = APIRouter()
 
@@ -174,22 +180,46 @@ def profile(user: Me, e: E) -> schemas.Profile:
 
 # --- shelf scan -------------------------------------------------------------------------------
 
-@router.post("/me/shelf-scans", status_code=202)
-async def start_scan(user: Me, e: E, photo: UploadFile = File(...)) -> schemas.ShelfScan:
-    """Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results."""
+MAX_PHOTO = 15 * 1024 * 1024  # bytes: a phone photo is a few MB
+
+
+@router.post("/me/shelf-scans")
+async def scan_shelf(user: Me, e: E, photo: UploadFile = File(...), quality: Quality = 0.1) -> schemas.ShelfScan:
+    """Read a shelf photo and return its books, ranked for the user; it becomes their saved scan
+    (GET /me/shelf-scan). At most TASTE_SHELF_SCANS_PER_HOUR an hour: each is a paid model call.
+    If the app hangs up first the scan still finishes and is saved."""
     if "book" not in e.cats:
         raise HTTPException(404, "Shelf scan needs the book catalogue.")
-    image = await photo.read()
+    image = await photo.read(MAX_PHOTO + 1)
+    if len(image) > MAX_PHOTO:
+        raise HTTPException(413, "That photo is too large; one under 15 MB is plenty.")
     if not image:
         raise HTTPException(422, "Empty photo.")
-    e.start_scan(user, image, photo.filename or "photo")
-    return schemas.ShelfScan(status="running", progress=schemas.ScanProgress(done=0, total=0))
+    try:
+        check_photo(image)
+    except LLMError as err:
+        raise HTTPException(422, str(err)) from None
+    # Counting and logging with no `await` between them: other requests can't run in the gap, so
+    # parallel uploads can't all pass the count before any is logged. (One API process; with more,
+    # this needs a lock in the database.)
+    limit = get_settings().shelf_scans_per_hour
+    recent = e.store.scans_since(user, datetime.now(timezone.utc) - timedelta(hours=1))
+    if len(recent) >= limit:
+        wait = max(1, math.ceil((recent[0] + timedelta(hours=1) - datetime.now(timezone.utc)).total_seconds() / 60))
+        raise HTTPException(429, f"You can scan {limit} shelves an hour; try again in {wait} minute{'s' * (wait != 1)}.")
+    e.store.log_scan(user)
+    try:
+        # A blocking call of 20-40 s, on one of the threads the plain `def` routes run on. If the app
+        # hangs up, the thread still runs to the end and saves the scan.
+        await run_in_threadpool(e.scan_shelf, user, image, photo.filename or "photo")
+    except LLMError as err:
+        raise HTTPException(422, str(err)) from None
+    return await run_in_threadpool(get_scan, user, e, quality)
 
 
 @router.get("/me/shelf-scan")
 def get_scan(user: Me, e: E, quality: Quality = 0.1) -> schemas.ShelfScan:
-    """The latest scan: running with progress, failed with an error, or done with ranked books,
-    with a link to its photo (valid for an hour)."""
+    """The latest scan, with ranked books and a link to its photo (valid for an hour)."""
     out = e.scan(user, quality)
     saved = e.store.scan(user)
     return out.model_copy(update={"image_url": image_url(user, saved.id)}) if saved else out

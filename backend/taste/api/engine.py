@@ -1,12 +1,11 @@
 """Everything the API computes with: catalogues and shared traits (reloaded when a domain's
 genome is switched), the profile store, per-user models (cached on the user's ratings), and
-shelf-scan jobs."""
+shelf scanning."""
 
+import logging
 import threading
 import uuid
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -16,28 +15,22 @@ from taste.api import schemas
 from taste.model import TRAITS_FILE, Catalog, Genome, TraitSpace, UserModel, available_domains, genomes
 from taste.model import openlibrary
 from taste.model.genomes import load as load_genome
+from taste.model.llm import LLMError
 from taste.model.shelf import Spine, location, match_spines, ollama_vision, rank_matches, read_spines
 from taste.settings import get_settings
 from taste.storage import SqlProfileStore
 
-Reader = Callable[[bytes, Callable[[int, int], None]], list[Spine]]  # image, progress -> spines
+Reader = Callable[[bytes], list[Spine]]  # photo -> spines
+
+log = logging.getLogger("taste.api")
 
 
-def default_reader(image: bytes, progress: Callable[[int, int], None]) -> list[Spine]:
+def default_reader(image: bytes) -> list[Spine]:
     """Claude when ANTHROPIC_API_KEY is set (one request per photo), else the local Ollama model."""
     if get_settings().anthropic_api_key:
         from taste.model.claude_vision import claude_vision
-        return claude_vision(image, progress=progress)
-    return ollama_vision(image, progress=progress)
-
-
-@dataclass
-class Job:
-    id: str
-    status: str  # "running", "done", "failed"
-    done: int = 0
-    total: int = 0
-    error: str | None = None
+        return claude_vision(image)
+    return ollama_vision(image)
 
 
 class Engine:
@@ -63,8 +56,6 @@ class Engine:
         self._models: OrderedDict = OrderedDict()
         self._cache_size = cache_size
         self._lock = threading.Lock()
-        self.jobs: dict[str, Job] = {}  # user -> their latest scan job (in memory for now)
-        self._pool = ThreadPoolExecutor(max_workers=1)  # one scan at a time: the vision model is the bottleneck
 
     # --- genomes --------------------------------------------------------------------------
 
@@ -143,31 +134,20 @@ class Engine:
 
     # --- shelf scans ----------------------------------------------------------------------
 
-    def start_scan(self, user: str, image: bytes, photo_name: str) -> Job:
-        job = Job(uuid.uuid4().hex, "running")
-        self.jobs[user] = job
-
-        def progress(done: int, total: int) -> None:
-            job.done, job.total = done, total
-
-        def run() -> None:
-            try:
-                spines = read_spines(image, lambda img: self.reader(img, progress))
-                self.store.save_scan(user, job.id, photo_name, spines, image)
-                job.status = "done"
-            except Exception as e:  # shown to the user; the job must never stay "running"
-                job.status, job.error = "failed", str(e)
-
-        self._pool.submit(run)
-        return job
+    def scan_shelf(self, user: str, image: bytes, photo_name: str) -> None:
+        """Read a shelf photo and save it as the user's scan, replacing the last one. Raises
+        LLMError (written for the user) if the photo can't be read."""
+        try:
+            spines = read_spines(image, self.reader)
+        except LLMError:
+            raise
+        except Exception:  # anything else stays in the log
+            log.exception("shelf scan failed")
+            raise LLMError("Something went wrong reading the photo; try again.") from None
+        self.store.save_scan(user, uuid.uuid4().hex, photo_name, spines, image)
 
     def scan(self, user: str, quality: float) -> schemas.ShelfScan:
-        job, saved = self.jobs.get(user), self.store.scan(user)
-        if job and job.status == "running":
-            return schemas.ShelfScan(status="running", progress=schemas.ScanProgress(done=job.done, total=job.total))
-        if job and job.status == "failed" and (saved is None or saved.id != job.id):
-            out = self._scan_results(user, saved, quality) if saved else schemas.ShelfScan(status="none")
-            return out.model_copy(update={"status": "failed", "error": job.error})
+        saved = self.store.scan(user)
         return self._scan_results(user, saved, quality) if saved else schemas.ShelfScan(status="none")
 
     def _scan_results(self, user: str, saved, quality: float) -> schemas.ShelfScan:

@@ -2,7 +2,9 @@
 
     python dev.py
 
-Ctrl+C stops both. If either one exits, the other is stopped too.
+With TASTE_PG_BIN in .env (a folder with pg_ctl, e.g. D:/Tools/pgsql/bin), it also starts the
+local Postgres in data/pg (create it once: see README, Accounts) and applies migrations first.
+Ctrl+C stops everything. If either one exits, the other is stopped too.
 """
 
 import os
@@ -31,12 +33,39 @@ def stop(proc):
     proc.wait()
 
 
+def env_file() -> dict[str, str]:
+    path = ROOT / ".env"
+    if not path.exists():
+        return {}
+    pairs = (line.split("=", 1) for line in path.read_text().splitlines() if "=" in line and not line.startswith("#"))
+    return {k.strip(): v.strip().strip('"') for k, v in pairs}
+
+
+def postgres(bin_dir: Path) -> bool:
+    """Start the local Postgres in data/pg if it isn't running; True if this started it."""
+    exe = lambda name: str(bin_dir / (f"{name}.exe" if WINDOWS else name))
+    if subprocess.run([exe("pg_isready"), "-h", "localhost", "-q"]).returncode == 0:
+        return False
+    print("[dev] starting postgres (data/pg)", flush=True)
+    # Its output goes to a log: pg_ctl's server keeps any pipe it's given open.
+    subprocess.run([exe("pg_ctl"), "-D", str(ROOT / "data" / "pg"), "-l", str(ROOT / "data" / "pg.log"),
+                    "-o", "-c listen_addresses=localhost", "-w", "start"],
+                   stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    return True
+
+
 def main():
     uvicorn = VENV / ("uvicorn.exe" if WINDOWS else "uvicorn")
     if not uvicorn.exists():
         sys.exit(f'[dev] {uvicorn} not found: run  python -m venv .venv  and  pip install -e "backend[dev]"')
     if not (ROOT / "frontend" / "node_modules").exists():
         sys.exit("[dev] frontend/node_modules not found: run  npm install  in frontend/")
+
+    pg_bin = env_file().get("TASTE_PG_BIN")
+    started_pg = postgres(Path(pg_bin)) if pg_bin else False
+    if pg_bin:
+        alembic = VENV / ("alembic.exe" if WINDOWS else "alembic")
+        subprocess.run([str(alembic), "upgrade", "head"], cwd=ROOT / "backend", check=True)
 
     procs = [
         start("api", [str(uvicorn), "taste.api.app:app", "--reload", "--port", "8000"],
@@ -57,6 +86,9 @@ def main():
     finally:
         for _, proc in procs:
             stop(proc)
+        if started_pg:
+            pg_ctl = Path(pg_bin) / ("pg_ctl.exe" if WINDOWS else "pg_ctl")
+            subprocess.run([str(pg_ctl), "-D", str(ROOT / "data" / "pg"), "-m", "fast", "stop"], capture_output=True)
 
 
 if __name__ == "__main__":

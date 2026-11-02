@@ -1,8 +1,7 @@
 """What gets stored per user, and the interface any storage backend implements.
 
-The model layer never touches storage; the API (and the Streamlit PoC) read and write
-through a ProfileStore. Today that's JSON files; a database store implements the same
-protocol later.
+The model layer never touches storage; the API reads and writes through a ProfileStore,
+keyed by user id. SqlProfileStore (sql_store.py) is the implementation.
 """
 
 from dataclasses import dataclass
@@ -30,9 +29,6 @@ class ShelfScan:
 
 
 class ProfileStore(Protocol):
-    def users(self) -> list[str]:
-        """User names, the default user first."""
-
     def ratings(self, user: str) -> dict[str, int]:
         """Ratings keyed "<domain>:<id>": +1 like, 0 meh, -1 dislike."""
 

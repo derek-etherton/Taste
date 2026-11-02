@@ -5,6 +5,220 @@
   "version": "0.2.0"
  },
  "paths": {
+  "/auth/guest": {
+   "post": {
+    "summary": "Guest",
+    "description": "Continue without an account: a new anonymous profile, kept by this device's session.",
+    "operationId": "guest_auth_guest_post",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignedIn"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/apple": {
+   "post": {
+    "summary": "Apple",
+    "operationId": "apple_auth_apple_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/AppleIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignedIn"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/google": {
+   "post": {
+    "summary": "Google",
+    "operationId": "google_auth_google_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/GoogleIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignedIn"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/dev": {
+   "post": {
+    "summary": "Dev",
+    "description": "Local development only (TASTE_DEV_LOGIN): sign in as any email, no proof asked.",
+    "operationId": "dev_auth_dev_post",
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/DevIn"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/SignedIn"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/auth/logout": {
+   "post": {
+    "summary": "Logout",
+    "description": "End this session (or, with everywhere, all of this user's sessions).",
+    "operationId": "logout_auth_logout_post",
+    "parameters": [
+     {
+      "name": "everywhere",
+      "in": "query",
+      "required": false,
+      "schema": {
+       "type": "boolean",
+       "default": false,
+       "title": "Everywhere"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "type": "object",
+         "additionalProperties": true,
+         "title": "Response Logout Auth Logout Post"
+        }
+       }
+      }
+     },
+     "422": {
+      "description": "Validation Error",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/HTTPValidationError"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "/me": {
+   "get": {
+    "summary": "Me",
+    "operationId": "me_me_get",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/Me"
+        }
+       }
+      }
+     }
+    }
+   },
+   "delete": {
+    "summary": "Delete Me",
+    "description": "Delete the account and everything in it: ratings, shelf scan, sign-ins, sessions.",
+    "operationId": "delete_me_me_delete",
+    "responses": {
+     "200": {
+      "description": "Successful Response",
+      "content": {
+       "application/json": {
+        "schema": {
+         "additionalProperties": true,
+         "type": "object",
+         "title": "Response Delete Me Me Delete"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
   "/health": {
    "get": {
     "summary": "Health",
@@ -47,65 +261,21 @@
     }
    }
   },
-  "/profiles": {
-   "get": {
-    "summary": "Profiles",
-    "operationId": "profiles_profiles_get",
-    "responses": {
-     "200": {
-      "description": "Successful Response",
-      "content": {
-       "application/json": {
-        "schema": {
-         "items": {
-          "type": "string"
-         },
-         "type": "array",
-         "title": "Response Profiles Profiles Get"
-        }
-       }
-      }
-     }
-    }
-   }
-  },
-  "/profiles/{user}": {
+  "/me/summary": {
    "get": {
     "summary": "Summary",
-    "operationId": "summary_profiles__user__get",
-    "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     }
-    ],
+    "operationId": "summary_me_summary_get",
     "responses": {
      "200": {
       "description": "Successful Response",
       "content": {
        "application/json": {
         "schema": {
-         "type": "array",
          "items": {
           "$ref": "#/components/schemas/DomainSummary"
          },
-         "title": "Response Summary Profiles  User  Get"
-        }
-       }
-      }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
+         "type": "array",
+         "title": "Response Summary Me Summary Get"
         }
        }
       }
@@ -113,22 +283,12 @@
     }
    }
   },
-  "/profiles/{user}/{domain}/items": {
+  "/me/{domain}/items": {
    "get": {
     "summary": "Items",
     "description": "For you: unrated items, best match first. Rate: what rating would teach the profile most.\nA search (q) covers the whole catalogue, rated items included. Each volume of a series is its own item.\nWith tags, the order is tag_match \u00d7 the item's percentile in the mode's own order: a soft AND,\nso what comes first both has the tags and is high on your list.",
-    "operationId": "items_profiles__user___domain__items_get",
+    "operationId": "items_me__domain__items_get",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "domain",
       "in": "path",
@@ -282,22 +442,12 @@
     }
    }
   },
-  "/profiles/{user}/{domain}/items/{key}": {
+  "/me/{domain}/items/{key}": {
    "get": {
     "summary": "Item",
     "description": "An item's page: card, distinctive tags, the score breakdown, and the most similar items.",
-    "operationId": "item_profiles__user___domain__items__key__get",
+    "operationId": "item_me__domain__items__key__get",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "domain",
       "in": "path",
@@ -367,22 +517,12 @@
     }
    }
   },
-  "/profiles/{user}/{domain}/items/{key}/explanation": {
+  "/me/{domain}/items/{key}/explanation": {
    "get": {
     "summary": "Explanation",
     "description": "Why an item scores what it does: the score popover.",
-    "operationId": "explanation_profiles__user___domain__items__key__explanation_get",
+    "operationId": "explanation_me__domain__items__key__explanation_get",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "domain",
       "in": "path",
@@ -440,22 +580,12 @@
     }
    }
   },
-  "/profiles/{user}/{domain}/rated": {
+  "/me/{domain}/rated": {
    "get": {
     "summary": "Rated",
     "description": "The user's rated items: likes, then mehs, then dislikes.",
-    "operationId": "rated_profiles__user___domain__rated_get",
+    "operationId": "rated_me__domain__rated_get",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "domain",
       "in": "path",
@@ -490,7 +620,7 @@
          "items": {
           "$ref": "#/components/schemas/ItemCard"
          },
-         "title": "Response Rated Profiles  User   Domain  Rated Get"
+         "title": "Response Rated Me  Domain  Rated Get"
         }
        }
       }
@@ -508,21 +638,11 @@
     }
    }
   },
-  "/profiles/{user}/ratings/{key}": {
+  "/me/ratings/{key}": {
    "put": {
     "summary": "Rate",
-    "operationId": "rate_profiles__user__ratings__key__put",
+    "operationId": "rate_me_ratings__key__put",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "key",
       "in": "path",
@@ -568,18 +688,8 @@
    },
    "delete": {
     "summary": "Unrate",
-    "operationId": "unrate_profiles__user__ratings__key__delete",
+    "operationId": "unrate_me_ratings__key__delete",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "key",
       "in": "path",
@@ -614,23 +724,11 @@
     }
    }
   },
-  "/profiles/{user}/profile": {
+  "/me/profile": {
    "get": {
     "summary": "Profile",
     "description": "What the model has inferred: traits shared across domains, then each domain's own taste.",
-    "operationId": "profile_profiles__user__profile_get",
-    "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     }
-    ],
+    "operationId": "profile_me_profile_get",
     "responses": {
      "200": {
       "description": "Successful Response",
@@ -641,46 +739,24 @@
         }
        }
       }
-     },
-     "422": {
-      "description": "Validation Error",
-      "content": {
-       "application/json": {
-        "schema": {
-         "$ref": "#/components/schemas/HTTPValidationError"
-        }
-       }
-      }
      }
     }
    }
   },
-  "/profiles/{user}/shelf-scans": {
+  "/me/shelf-scans": {
    "post": {
     "summary": "Start Scan",
-    "description": "Start reading a shelf photo. Poll GET .../shelf-scan for progress and results.",
-    "operationId": "start_scan_profiles__user__shelf_scans_post",
-    "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     }
-    ],
+    "description": "Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results.",
+    "operationId": "start_scan_me_shelf_scans_post",
     "requestBody": {
-     "required": true,
      "content": {
       "multipart/form-data": {
        "schema": {
-        "$ref": "#/components/schemas/Body_start_scan_profiles__user__shelf_scans_post"
+        "$ref": "#/components/schemas/Body_start_scan_me_shelf_scans_post"
        }
       }
-     }
+     },
+     "required": true
     },
     "responses": {
      "202": {
@@ -706,22 +782,12 @@
     }
    }
   },
-  "/profiles/{user}/shelf-scan": {
+  "/me/shelf-scan": {
    "get": {
     "summary": "Get Scan",
-    "description": "The latest scan: running with progress, failed with an error, or done with ranked books.",
-    "operationId": "get_scan_profiles__user__shelf_scan_get",
+    "description": "The latest scan: running with progress, failed with an error, or done with ranked books,\nwith a link to its photo (valid for an hour).",
+    "operationId": "get_scan_me_shelf_scan_get",
     "parameters": [
-     {
-      "name": "user",
-      "in": "path",
-      "required": true,
-      "schema": {
-       "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
-       "title": "User"
-      }
-     },
      {
       "name": "quality",
       "in": "query",
@@ -761,10 +827,11 @@
     }
    }
   },
-  "/profiles/{user}/shelf-scan/image": {
+  "/shelf-images/{user}/{scan_id}": {
    "get": {
     "summary": "Scan Image",
-    "operationId": "scan_image_profiles__user__shelf_scan_image_get",
+    "description": "A scan's photo, by a signed link from GET /me/shelf-scan (an <img> can't send a session).",
+    "operationId": "scan_image_shelf_images__user___scan_id__get",
     "parameters": [
      {
       "name": "user",
@@ -772,8 +839,34 @@
       "required": true,
       "schema": {
        "type": "string",
-       "pattern": "^[a-z0-9][a-z0-9_-]{0,39}$",
        "title": "User"
+      }
+     },
+     {
+      "name": "scan_id",
+      "in": "path",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Scan Id"
+      }
+     },
+     {
+      "name": "expires",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "integer",
+       "title": "Expires"
+      }
+     },
+     {
+      "name": "sig",
+      "in": "query",
+      "required": true,
+      "schema": {
+       "type": "string",
+       "title": "Sig"
       }
      }
     ],
@@ -803,6 +896,30 @@
  },
  "components": {
   "schemas": {
+   "AppleIn": {
+    "properties": {
+     "identity_token": {
+      "type": "string",
+      "title": "Identity Token"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "identity_token"
+    ],
+    "title": "AppleIn"
+   },
    "Author": {
     "properties": {
      "name": {
@@ -858,7 +975,7 @@
     ],
     "title": "Because"
    },
-   "Body_start_scan_profiles__user__shelf_scans_post": {
+   "Body_start_scan_me_shelf_scans_post": {
     "properties": {
      "photo": {
       "type": "string",
@@ -870,7 +987,7 @@
     "required": [
      "photo"
     ],
-    "title": "Body_start_scan_profiles__user__shelf_scans_post"
+    "title": "Body_start_scan_me_shelf_scans_post"
    },
    "BookInfo": {
     "properties": {
@@ -1069,6 +1186,19 @@
     ],
     "title": "Claims"
    },
+   "DevIn": {
+    "properties": {
+     "email": {
+      "type": "string",
+      "title": "Email"
+     }
+    },
+    "type": "object",
+    "required": [
+     "email"
+    ],
+    "title": "DevIn"
+   },
    "Domain": {
     "properties": {
      "id": {
@@ -1255,6 +1385,19 @@
      "pushing_down"
     ],
     "title": "Explanation"
+   },
+   "GoogleIn": {
+    "properties": {
+     "id_token": {
+      "type": "string",
+      "title": "Id Token"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id_token"
+    ],
+    "title": "GoogleIn"
    },
    "HTTPValidationError": {
     "properties": {
@@ -1505,6 +1648,52 @@
     ],
     "title": "Link"
    },
+   "Me": {
+    "properties": {
+     "id": {
+      "type": "string",
+      "title": "Id"
+     },
+     "kind": {
+      "type": "string",
+      "enum": [
+       "guest",
+       "member"
+      ],
+      "title": "Kind"
+     },
+     "email": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Email"
+     },
+     "name": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Name"
+     }
+    },
+    "type": "object",
+    "required": [
+     "id",
+     "kind",
+     "email",
+     "name"
+    ],
+    "title": "Me"
+   },
    "Profile": {
     "properties": {
      "user": {
@@ -1660,6 +1849,17 @@
       "type": "array",
       "title": "Unmatched",
       "default": []
+     },
+     "image_url": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Image Url"
      }
     },
     "type": "object",
@@ -1667,6 +1867,23 @@
      "status"
     ],
     "title": "ShelfScan"
+   },
+   "SignedIn": {
+    "properties": {
+     "token": {
+      "type": "string",
+      "title": "Token"
+     },
+     "user": {
+      "$ref": "#/components/schemas/Me"
+     }
+    },
+    "type": "object",
+    "required": [
+     "token",
+     "user"
+    ],
+    "title": "SignedIn"
    },
    "Spine": {
     "properties": {

@@ -18,12 +18,16 @@ from taste.model import openlibrary
 from taste.model.genomes import load as load_genome
 from taste.model.shelf import Spine, location, match_spines, ollama_vision, rank_matches, read_spines
 from taste.settings import get_settings
-from taste.storage import JsonProfileStore, ProfileStore
+from taste.storage import SqlProfileStore
 
 Reader = Callable[[bytes, Callable[[int, int], None]], list[Spine]]  # image, progress -> spines
 
 
 def default_reader(image: bytes, progress: Callable[[int, int], None]) -> list[Spine]:
+    """Claude when ANTHROPIC_API_KEY is set (one request per photo), else the local Ollama model."""
+    if get_settings().anthropic_api_key:
+        from taste.model.claude_vision import claude_vision
+        return claude_vision(image, progress=progress)
     return ollama_vision(image, progress=progress)
 
 
@@ -37,7 +41,7 @@ class Job:
 
 
 class Engine:
-    def __init__(self, store: ProfileStore | None = None, reader: Reader = default_reader,
+    def __init__(self, store: SqlProfileStore | None = None, reader: Reader = default_reader,
                  cache_size: int = 32,
                  genome: dict[str, str] | None = None, releases: list[Path] | None = None,
                  domains: list[str] | None = None):
@@ -50,7 +54,11 @@ class Engine:
         start = {d: (genome or {}).get(d) or getattr(settings, f"{d}_genome", "default") for d in domains}
         self.cats: dict[str, Catalog] = {d: load_genome(self.genome_info(d, g)) for d, g in start.items()}
         self.traits = self._traits(self.cats)
-        self.store = store or JsonProfileStore()
+        if store is None:
+            if not settings.database_url:
+                raise RuntimeError("Set TASTE_DATABASE_URL (Postgres) in .env: see README, Accounts.")
+            store = SqlProfileStore(settings.database_url)
+        self.store = store
         self.reader = reader
         self._models: OrderedDict = OrderedDict()
         self._cache_size = cache_size

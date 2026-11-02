@@ -40,7 +40,9 @@
           "cameraPermission": "Taste reads the book spines in photos you take, to rank the books for you.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,

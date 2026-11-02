@@ -1,6 +1,6 @@
-"""Storage: per-user ratings, Describe Me and the last shelf scan, behind one interface."""
+"""Storage: accounts, and per-user ratings, Describe Me and the last shelf scan, in the database."""
 
 from taste.storage.base import Description, ProfileStore, ShelfScan
-from taste.storage.json_store import MAIN, JsonProfileStore
+from taste.storage.sql_store import Account, SqlProfileStore
 
-__all__ = ["Description", "ProfileStore", "ShelfScan", "MAIN", "JsonProfileStore"]
+__all__ = ["Account", "Description", "ProfileStore", "ShelfScan", "SqlProfileStore"]

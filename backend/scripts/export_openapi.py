@@ -9,13 +9,14 @@ from pathlib import Path
 
 from fastapi.openapi.utils import get_openapi
 
+from taste.api import auth
 from taste.api.routes import router
 from taste.settings import ROOT
 
 
 def main(out: Path) -> None:
     # Built from the routes alone, so no catalogues need loading.
-    spec = get_openapi(title="Taste", version="0.2.0", routes=router.routes)
+    spec = get_openapi(title="Taste", version="0.2.0", routes=auth.router.routes + router.routes)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(spec, indent=1) + "\n", encoding="utf-8")
     print(f"Wrote {len(spec['paths'])} paths to {out}")

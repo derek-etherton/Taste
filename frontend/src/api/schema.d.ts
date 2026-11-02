@@ -4,6 +4,121 @@
  */
 
 export interface paths {
+    "/auth/guest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Guest
+         * @description Continue without an account: a new anonymous profile, kept by this device's session.
+         */
+        post: operations["guest_auth_guest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/apple": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apple */
+        post: operations["apple_auth_apple_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Google */
+        post: operations["google_auth_google_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/dev": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dev
+         * @description Local development only (TASTE_DEV_LOGIN): sign in as any email, no proof asked.
+         */
+        post: operations["dev_auth_dev_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Logout
+         * @description End this session (or, with everywhere, all of this user's sessions).
+         */
+        post: operations["logout_auth_logout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Me */
+        get: operations["me_me_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Me
+         * @description Delete the account and everything in it: ratings, shelf scan, sign-ins, sessions.
+         */
+        delete: operations["delete_me_me_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -38,24 +153,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Profiles */
-        get: operations["profiles_profiles_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/profiles/{user}": {
+    "/me/summary": {
         parameters: {
             query?: never;
             header?: never;
@@ -63,7 +161,7 @@ export interface paths {
             cookie?: never;
         };
         /** Summary */
-        get: operations["summary_profiles__user__get"];
+        get: operations["summary_me_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -72,7 +170,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/{domain}/items": {
+    "/me/{domain}/items": {
         parameters: {
             query?: never;
             header?: never;
@@ -86,7 +184,7 @@ export interface paths {
          *     With tags, the order is tag_match × the item's percentile in the mode's own order: a soft AND,
          *     so what comes first both has the tags and is high on your list.
          */
-        get: operations["items_profiles__user___domain__items_get"];
+        get: operations["items_me__domain__items_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -115,7 +213,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/{domain}/items/{key}": {
+    "/me/{domain}/items/{key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -126,7 +224,7 @@ export interface paths {
          * Item
          * @description An item's page: card, distinctive tags, the score breakdown, and the most similar items.
          */
-        get: operations["item_profiles__user___domain__items__key__get"];
+        get: operations["item_me__domain__items__key__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -135,7 +233,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/{domain}/items/{key}/explanation": {
+    "/me/{domain}/items/{key}/explanation": {
         parameters: {
             query?: never;
             header?: never;
@@ -146,7 +244,7 @@ export interface paths {
          * Explanation
          * @description Why an item scores what it does: the score popover.
          */
-        get: operations["explanation_profiles__user___domain__items__key__explanation_get"];
+        get: operations["explanation_me__domain__items__key__explanation_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -155,7 +253,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/{domain}/rated": {
+    "/me/{domain}/rated": {
         parameters: {
             query?: never;
             header?: never;
@@ -166,7 +264,7 @@ export interface paths {
          * Rated
          * @description The user's rated items: likes, then mehs, then dislikes.
          */
-        get: operations["rated_profiles__user___domain__rated_get"];
+        get: operations["rated_me__domain__rated_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -175,7 +273,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/ratings/{key}": {
+    "/me/ratings/{key}": {
         parameters: {
             query?: never;
             header?: never;
@@ -184,16 +282,16 @@ export interface paths {
         };
         get?: never;
         /** Rate */
-        put: operations["rate_profiles__user__ratings__key__put"];
+        put: operations["rate_me_ratings__key__put"];
         post?: never;
         /** Unrate */
-        delete: operations["unrate_profiles__user__ratings__key__delete"];
+        delete: operations["unrate_me_ratings__key__delete"];
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/profile": {
+    "/me/profile": {
         parameters: {
             query?: never;
             header?: never;
@@ -204,7 +302,7 @@ export interface paths {
          * Profile
          * @description What the model has inferred: traits shared across domains, then each domain's own taste.
          */
-        get: operations["profile_profiles__user__profile_get"];
+        get: operations["profile_me_profile_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -213,7 +311,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/shelf-scans": {
+    "/me/shelf-scans": {
         parameters: {
             query?: never;
             header?: never;
@@ -224,16 +322,16 @@ export interface paths {
         put?: never;
         /**
          * Start Scan
-         * @description Start reading a shelf photo. Poll GET .../shelf-scan for progress and results.
+         * @description Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results.
          */
-        post: operations["start_scan_profiles__user__shelf_scans_post"];
+        post: operations["start_scan_me_shelf_scans_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/shelf-scan": {
+    "/me/shelf-scan": {
         parameters: {
             query?: never;
             header?: never;
@@ -242,9 +340,10 @@ export interface paths {
         };
         /**
          * Get Scan
-         * @description The latest scan: running with progress, failed with an error, or done with ranked books.
+         * @description The latest scan: running with progress, failed with an error, or done with ranked books,
+         *     with a link to its photo (valid for an hour).
          */
-        get: operations["get_scan_profiles__user__shelf_scan_get"];
+        get: operations["get_scan_me_shelf_scan_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -253,15 +352,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/profiles/{user}/shelf-scan/image": {
+    "/shelf-images/{user}/{scan_id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Scan Image */
-        get: operations["scan_image_profiles__user__shelf_scan_image_get"];
+        /**
+         * Scan Image
+         * @description A scan's photo, by a signed link from GET /me/shelf-scan (an <img> can't send a session).
+         */
+        get: operations["scan_image_shelf_images__user___scan_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -274,6 +376,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AppleIn */
+        AppleIn: {
+            /** Identity Token */
+            identity_token: string;
+            /** Name */
+            name?: string | null;
+        };
         /** Author */
         Author: {
             /** Name */
@@ -290,8 +399,8 @@ export interface components {
             /** From Other Domain */
             from_other_domain: boolean;
         };
-        /** Body_start_scan_profiles__user__shelf_scans_post */
-        Body_start_scan_profiles__user__shelf_scans_post: {
+        /** Body_start_scan_me_shelf_scans_post */
+        Body_start_scan_me_shelf_scans_post: {
             /** Photo */
             photo: string;
         };
@@ -346,6 +455,11 @@ export interface components {
             respond_to: components["schemas"]["Claim"][];
             /** Push Back On */
             push_back_on: components["schemas"]["Claim"][];
+        };
+        /** DevIn */
+        DevIn: {
+            /** Email */
+            email: string;
         };
         /** Domain */
         Domain: {
@@ -413,6 +527,11 @@ export interface components {
             pulling_up: components["schemas"]["TagContribution"][];
             /** Pushing Down */
             pushing_down: components["schemas"]["TagContribution"][];
+        };
+        /** GoogleIn */
+        GoogleIn: {
+            /** Id Token */
+            id_token: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -485,6 +604,20 @@ export interface components {
             /** Url */
             url: string;
         };
+        /** Me */
+        Me: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "guest" | "member";
+            /** Email */
+            email: string | null;
+            /** Name */
+            name: string | null;
+        };
         /** Profile */
         Profile: {
             /** User */
@@ -540,6 +673,14 @@ export interface components {
              * @default []
              */
             unmatched: components["schemas"]["Spine"][];
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /** SignedIn */
+        SignedIn: {
+            /** Token */
+            token: string;
+            user: components["schemas"]["Me"];
         };
         /** Spine */
         Spine: {
@@ -588,6 +729,200 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    guest_auth_guest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedIn"];
+                };
+            };
+        };
+    };
+    apple_auth_apple_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AppleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedIn"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    google_auth_google_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedIn"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dev_auth_dev_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DevIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedIn"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    logout_auth_logout_post: {
+        parameters: {
+            query?: {
+                everywhere?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    me_me_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
+        };
+    };
+    delete_me_me_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     health_health_get: {
         parameters: {
             query?: never;
@@ -630,7 +965,7 @@ export interface operations {
             };
         };
     };
-    profiles_profiles_get: {
+    summary_me_summary_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -645,43 +980,12 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": string[];
-                };
-            };
-        };
-    };
-    summary_profiles__user__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
                     "application/json": components["schemas"]["DomainSummary"][];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    items_profiles__user___domain__items_get: {
+    items_me__domain__items_get: {
         parameters: {
             query?: {
                 mode?: "for_you" | "rate";
@@ -694,7 +998,6 @@ export interface operations {
             };
             header?: never;
             path: {
-                user: string;
                 domain: string;
             };
             cookie?: never;
@@ -752,7 +1055,7 @@ export interface operations {
             };
         };
     };
-    item_profiles__user___domain__items__key__get: {
+    item_me__domain__items__key__get: {
         parameters: {
             query?: {
                 /** @description Weight on general quality; 0 = pure taste match */
@@ -761,7 +1064,6 @@ export interface operations {
             };
             header?: never;
             path: {
-                user: string;
                 domain: string;
                 key: string;
             };
@@ -789,7 +1091,7 @@ export interface operations {
             };
         };
     };
-    explanation_profiles__user___domain__items__key__explanation_get: {
+    explanation_me__domain__items__key__explanation_get: {
         parameters: {
             query?: {
                 /** @description Weight on general quality; 0 = pure taste match */
@@ -797,7 +1099,6 @@ export interface operations {
             };
             header?: never;
             path: {
-                user: string;
                 domain: string;
                 key: string;
             };
@@ -825,7 +1126,7 @@ export interface operations {
             };
         };
     };
-    rated_profiles__user___domain__rated_get: {
+    rated_me__domain__rated_get: {
         parameters: {
             query?: {
                 /** @description Weight on general quality; 0 = pure taste match */
@@ -833,7 +1134,6 @@ export interface operations {
             };
             header?: never;
             path: {
-                user: string;
                 domain: string;
             };
             cookie?: never;
@@ -860,12 +1160,11 @@ export interface operations {
             };
         };
     };
-    rate_profiles__user__ratings__key__put: {
+    rate_me_ratings__key__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                user: string;
                 key: string;
             };
             cookie?: never;
@@ -896,12 +1195,11 @@ export interface operations {
             };
         };
     };
-    unrate_profiles__user__ratings__key__delete: {
+    unrate_me_ratings__key__delete: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                user: string;
                 key: string;
             };
             cookie?: never;
@@ -928,13 +1226,11 @@ export interface operations {
             };
         };
     };
-    profile_profiles__user__profile_get: {
+    profile_me_profile_get: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                user: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -948,29 +1244,18 @@ export interface operations {
                     "application/json": components["schemas"]["Profile"];
                 };
             };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
         };
     };
-    start_scan_profiles__user__shelf_scans_post: {
+    start_scan_me_shelf_scans_post: {
         parameters: {
             query?: never;
             header?: never;
-            path: {
-                user: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_start_scan_profiles__user__shelf_scans_post"];
+                "multipart/form-data": components["schemas"]["Body_start_scan_me_shelf_scans_post"];
             };
         };
         responses: {
@@ -994,16 +1279,14 @@ export interface operations {
             };
         };
     };
-    get_scan_profiles__user__shelf_scan_get: {
+    get_scan_me_shelf_scan_get: {
         parameters: {
             query?: {
                 /** @description Weight on general quality; 0 = pure taste match */
                 quality?: number;
             };
             header?: never;
-            path: {
-                user: string;
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
@@ -1028,12 +1311,16 @@ export interface operations {
             };
         };
     };
-    scan_image_profiles__user__shelf_scan_image_get: {
+    scan_image_shelf_images__user___scan_id__get: {
         parameters: {
-            query?: never;
+            query: {
+                expires: number;
+                sig: string;
+            };
             header?: never;
             path: {
                 user: string;
+                scan_id: string;
             };
             cookie?: never;
         };

@@ -4,13 +4,18 @@ version = "0.2.0"
 description = "Person-centred film and book recommender: model and HTTP API"
 requires-python = ">=3.11"
 dependencies = [
+    "alembic",  # database migrations
+    "anthropic",  # Shelf scan's reader (Claude)
     "fastapi",
     "numpy",
     "pandas",
     "pillow",
+    "psycopg[binary]",  # Postgres
+    "pyjwt[crypto]",  # Apple and Google ID tokens
     "pydantic-settings",
     "python-multipart",  # photo uploads
     "rapidfuzz",
+    "sqlalchemy>=2",
     "truststore",  # OS certificate store for the dataset download
     "uvicorn[standard]",
 ]

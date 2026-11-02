@@ -33,13 +33,14 @@ npm run api:types
 ## Layout
 
 ```
-src/app/            screens (Expo Router): (tabs)/index (Discover), (tabs)/shelf (Shelf Scan), (tabs)/profile,
-                    item/[key] (a book's page, pushed under a native navigation bar)
+src/app/            screens (Expo Router): sign-in (no session yet), (tabs)/index (Discover), (tabs)/shelf
+                    (Shelf Scan), (tabs)/profile, item/[key] (a book's page, under a native navigation bar)
 src/api/            client.ts (typed fetch client), hooks.ts (TanStack Query), schema.d.ts (generated)
 src/components/     kit (Screen, LargeTitle, Section, Button, SearchField, Icon, appearance toggle), item-row,
                     sheet, explanation-sheet, tag-filter, tag-charts, taste-chart, top-books, book-info, app-tabs
 src/constants/      palette.ts (brand colours), theme.ts (colours, type, spacing), color.ts (contrast maths)
-src/state/          settings.tsx (fixed for now: profile `main`, books, quality 0), appearance.ts (light/dark, saved)
+src/state/          session.tsx (guest or member; token in the Keychain/Keystore on phones, an HttpOnly cookie on
+                    web), settings.tsx (books, quality 0), appearance.ts (light/dark, saved)
 ```
 
 ## Look and feel
@@ -58,5 +59,7 @@ Colours are iOS system colours (grouped backgrounds, labels, separators, fills) 
 - `surfaceTint`: placeholders.
 
 `theme.ts` derives light and dark variants with enough contrast for each role. The sun/moon button at the top right switches light and dark, and is saved on the device (`localStorage` on web, AsyncStorage on phones); until it's used, the app follows the system.
+
+Sign-in settings (Google client ids, the dev email sign-in, the app id for native builds) go in `.env.local`: see `.env.example` and the main README's Sign-in setup.
 
 Checks: `npm run typecheck` and `npx expo lint`.

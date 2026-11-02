@@ -3,9 +3,8 @@
     photo --reader--> [Spine(title, author)] --match_spines--> [Match(row | None)]
           --UserModel.ranked--> best for this profile first
 
-A reader is any callable image bytes -> spines, so the vision model is swappable: the
-default asks a local Ollama vision model; a Claude reader can drop in with the same prompt
-and schema. Matching is fuzzy on titles (OCR is imperfect), with the author as a tiebreak.
+A reader is any callable image bytes -> spines, so the vision model is swappable: Claude
+(claude_vision.py) when ANTHROPIC_API_KEY is set, else a local Ollama vision model (below). Matching is fuzzy on titles (OCR is imperfect), with the author as a tiebreak.
 """
 
 import base64

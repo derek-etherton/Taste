@@ -6,18 +6,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from taste.api import auth
 from taste.api.engine import Engine
 from taste.api.routes import router
 from taste.settings import get_settings
 
 
-def create_app(engine: Engine | None = None) -> FastAPI:
-    """The app; tests pass an engine with a temporary store and stand-in LLMs."""
+def create_app(engine: Engine | None = None, auth_per_minute: int = 30) -> FastAPI:
+    """The app; tests pass an engine with a temporary store and stand-in LLMs.
+    `auth_per_minute`: sign-in requests allowed per client IP per minute."""
     app = FastAPI(title="Taste", version="0.2.0",
                   description="Person-centred book recommendations and Shelf scan.")
-    app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins,
+    # Credentials: the web app's session is a cookie, so origins must be listed, never "*".
+    app.add_middleware(CORSMiddleware, allow_origins=get_settings().cors_origins, allow_credentials=True,
                        allow_methods=["*"], allow_headers=["*"])
     app.state.engine = engine or Engine()
+    app.state.auth_limit = auth.RateLimit(auth_per_minute)
+    app.include_router(auth.router)
     app.include_router(router)
     return app
 

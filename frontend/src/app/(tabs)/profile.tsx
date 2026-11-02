@@ -1,9 +1,10 @@
-/** Profile: your taste in books as an infographic, and the books you've rated. */
+/** Profile: your taste in books as an infographic, the books you've rated, and your account. */
 import { SegmentedControl } from '@expo/ui/community/segmented-control';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { useItems, useProfile, useRated } from '@/api/hooks';
+import { AccountSection } from '@/components/account-section';
 import { ItemRow } from '@/components/item-row';
 import { LargeTitle, Loading, Note, Screen, listPadding } from '@/components/kit';
 import { type RatingCounts, TasteChart } from '@/components/taste-chart';
@@ -70,6 +71,9 @@ export default function ProfileScreen() {
             ))}
           </View>
         )}
+        <View style={styles.account}>
+          <AccountSection />
+        </View>
       </ScrollView>
     </Screen>
   );
@@ -77,4 +81,5 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   page: { gap: Spacing.three },
+  account: { marginTop: Spacing.four },
 });

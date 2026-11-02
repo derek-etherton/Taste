@@ -166,3 +166,31 @@ class ShelfScan(BaseModel):
     scanned: str | None = None
     books: list[ItemCard] = []  # recognised books, best for this user first, with locations
     unmatched: list[Spine] = []  # read but not in the catalogue
+    image_url: str | None = None  # the photo, a signed path valid for an hour (no auth header needed)
+
+
+# --- accounts ---------------------------------------------------------------------------------
+
+class Me(BaseModel):
+    id: str
+    kind: Literal["guest", "member"]  # a guest has no sign-in: losing the device loses the profile
+    email: str | None
+    name: str | None
+
+
+class SignedIn(BaseModel):
+    token: str  # for phones (Authorization: Bearer); the web app uses the HttpOnly cookie instead
+    user: Me
+
+
+class AppleIn(BaseModel):
+    identity_token: str
+    name: str | None = None  # Apple only shares the name on the first sign-in, in the app
+
+
+class GoogleIn(BaseModel):
+    id_token: str
+
+
+class DevIn(BaseModel):
+    email: str

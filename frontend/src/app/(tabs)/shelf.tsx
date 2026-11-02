@@ -52,7 +52,7 @@ export default function ShelfScan() {
   const running = start.isPending || s?.status === 'running';
   const progress = s?.progress && s.progress.total ? s.progress.done / s.progress.total : 0;
   const read = (s?.books.length ?? 0) + (s?.unmatched.length ?? 0);
-  const photo = running && preview ? preview : s?.scanned ? scanImageUrl(user, s.scanned) : preview;
+  const photo = running && preview ? preview : (scanImageUrl(s?.image_url) ?? preview);
   const books = running ? [] : (s?.books ?? []);
   const done = !running && s && s.status !== 'none';
 
@@ -96,15 +96,15 @@ export default function ShelfScan() {
               {running ? (
                 <>
                   <ThemedText type="headline">
-                    {s?.progress?.total
+                    {s?.progress && s.progress.total > 1
                       ? `Reading part ${Math.min(s.progress.done + 1, s.progress.total)} of ${s.progress.total}…`
-                      : 'Finding the shelves…'}
+                      : 'Reading the spines…'}
                   </ThemedText>
                   <View style={[styles.track, { backgroundColor: theme.fill }]}>
                     <View style={[styles.fill, { width: `${Math.round(progress * 100)}%`, backgroundColor: theme.accent }]} />
                   </View>
                   <ThemedText type="footnote" themeColor="secondaryLabel">
-                    About a minute for a full bookcase.
+                    Usually under a minute.
                   </ThemedText>
                 </>
               ) : done ? (

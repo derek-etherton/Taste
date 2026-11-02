@@ -8,14 +8,13 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import find
+from conftest import find, make_store, sign_in_as_guest
 from taste.api.app import create_app
 from taste.api.engine import Engine
 from taste.model import UserModel, genomes
 from taste.model.bookgenome import link, norm_author, norm_title
 from taste.model.genomes import load
 from taste.model.traits import compose
-from taste.storage import JsonProfileStore
 
 # Gutenberg-style titles of books the default catalogue has, and one it doesn't.
 BOOKS = [("robinson-crusoe", "The Life and Adventures of Robinson Crusoe", "Daniel Defoe"),
@@ -95,9 +94,11 @@ def release(tmp_path_factory) -> Path:
 
 @pytest.fixture(scope="module")
 def client(tmp_path_factory, cats, release):  # cats: skips the module if the data isn't prepared
-    engine = Engine(store=JsonProfileStore(tmp_path_factory.mktemp("users")), releases=[release],
+    engine = Engine(store=make_store(tmp_path_factory.mktemp("db")), releases=[release],
                     domains=["film", "book"], genome={"film": "default", "book": "default"})
-    return TestClient(create_app(engine))
+    client = TestClient(create_app(engine, auth_per_minute=1000))
+    sign_in_as_guest(client)
+    return client
 
 
 def switch(client, genome: str):
@@ -114,9 +115,9 @@ def test_list_and_switch(client, cats):
     cat = switch(client, "testgenome")
     assert (cat.genome, len(cat), len(cat.tags), cat.linked) == ("testgenome", 4, 5, 3)
     assert {d["id"]: d["genome"] for d in client.get("/domains").json()}["book"] == "testgenome"
-    titles = {c["title"] for c in client.get("/profiles/main/book/items").json()["items"]}
+    titles = {c["title"] for c in client.get("/me/book/items").json()["items"]}
     assert "Queen Lucia" in titles and len(titles) == 4  # every release book, linked or not
-    assert client.get("/profiles/main/film/items").status_code == 200  # films still work
+    assert client.get("/me/film/items").status_code == 200  # films still work
 
     with pytest.raises(KeyError):
         switch(client, "nope")
@@ -134,8 +135,9 @@ def test_derived_film_links(client):
 
 def test_ratings_survive_round_trip(client, cats):
     huck = find(cats["book"], "The Adventures of Huckleberry Finn")
-    rate = lambda key: client.put(f"/profiles/trip/ratings/{key}", json={"value": 1})
-    rated = lambda: {c["key"] for c in client.get("/profiles/trip/book/rated").json()}
+    user = sign_in_as_guest(client)  # a profile of its own
+    rate = lambda key: client.put(f"/me/ratings/{key}", json={"value": 1})
+    rated = lambda: {c["key"] for c in client.get("/me/book/rated").json()}
 
     assert rate(huck).status_code == 200  # rated in the default genome...
     switch(client, "testgenome")
@@ -146,7 +148,7 @@ def test_ratings_survive_round_trip(client, cats):
     switch(client, "default")
     assert rated() == {huck}  # Queen Lucia isn't here: hidden, not lost
     assert rate("book:gb-queen-lucia").status_code == 404
-    assert "book:gb-queen-lucia" in client.app.state.engine.store.ratings("trip")
+    assert "book:gb-queen-lucia" in client.app.state.engine.store.ratings(user)
 
     switch(client, "testgenome")
     assert rated() == {huck, "book:gb-queen-lucia"}

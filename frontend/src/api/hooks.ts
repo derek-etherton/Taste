@@ -1,9 +1,10 @@
-/** Server state, via TanStack Query. Query keys start with the user so switching profile is clean. */
+/** Server state, via TanStack Query. Everything about the user is under /me (the session says who);
+ * query keys start with the user's id so a different person never sees cached data. */
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { Platform } from 'react-native';
 
-import { API_URL, api, errorMessage, type ItemCard, type ItemDetail, type Rating, type ShelfScan, unwrap } from './client';
+import { API_URL, api, authFetch, errorMessage, type ItemCard, type ItemDetail, type Rating, type ShelfScan, unwrap } from './client';
 
 export const PAGE_SIZE = 25;
 export type Mode = 'for_you' | 'rate';
@@ -11,7 +12,7 @@ export type Mode = 'for_you' | 'rate';
 export function useSummary(user: string) {
   return useQuery({
     queryKey: [user, 'summary'],
-    queryFn: () => unwrap(api.GET('/profiles/{user}', { params: { path: { user } } })),
+    queryFn: () => unwrap(api.GET('/me/summary')),
   });
 }
 
@@ -21,8 +22,8 @@ export function useItems(user: string, domain: string, mode: Mode, q: string, qu
     initialPageParam: 1,
     queryFn: ({ pageParam }) =>
       unwrap(
-        api.GET('/profiles/{user}/{domain}/items', {
-          params: { path: { user, domain }, query: { mode, q, quality, tags, page: pageParam, page_size: PAGE_SIZE } },
+        api.GET('/me/{domain}/items', {
+          params: { path: { domain }, query: { mode, q, quality, tags, page: pageParam, page_size: PAGE_SIZE } },
         }),
       ),
     getNextPageParam: (last) => (last.page * last.page_size < last.total ? last.page + 1 : undefined),
@@ -43,7 +44,7 @@ export function useRated(user: string, domain: string, quality: number) {
   return useQuery({
     queryKey: [user, 'rated', domain, quality],
     queryFn: () =>
-      unwrap(api.GET('/profiles/{user}/{domain}/rated', { params: { path: { user, domain }, query: { quality } } })),
+      unwrap(api.GET('/me/{domain}/rated', { params: { path: { domain }, query: { quality } } })),
   });
 }
 
@@ -54,8 +55,8 @@ export function useItem(user: string, key: string, quality: number) {
     queryKey: [user, 'item', key, quality],
     queryFn: () =>
       unwrap(
-        api.GET('/profiles/{user}/{domain}/items/{key}', {
-          params: { path: { user, domain, key }, query: { quality } },
+        api.GET('/me/{domain}/items/{key}', {
+          params: { path: { domain, key }, query: { quality } },
         }),
       ),
   });
@@ -67,8 +68,8 @@ export function useExplanation(user: string, domain: string, key: string | null,
     enabled: key !== null,
     queryFn: () =>
       unwrap(
-        api.GET('/profiles/{user}/{domain}/items/{key}/explanation', {
-          params: { path: { user, domain, key: key! }, query: { quality } },
+        api.GET('/me/{domain}/items/{key}/explanation', {
+          params: { path: { domain, key: key! }, query: { quality } },
         }),
       ),
   });
@@ -102,8 +103,8 @@ export function useRate(user: string) {
   return useMutation({
     mutationFn: ({ key, value, current }: { key: string; value: Rating; current: Rating | null }) =>
       current === value
-        ? unwrap(api.DELETE('/profiles/{user}/ratings/{key}', { params: { path: { user, key } } }))
-        : unwrap(api.PUT('/profiles/{user}/ratings/{key}', { params: { path: { user, key } }, body: { value } })),
+        ? unwrap(api.DELETE('/me/ratings/{key}', { params: { path: { key } } }))
+        : unwrap(api.PUT('/me/ratings/{key}', { params: { path: { key } }, body: { value } })),
     onMutate: ({ key, value, current }) => setRatedEverywhere(client, user, key, current === value ? null : value),
     onSettled: () => client.invalidateQueries({ queryKey: [user] }),
   });
@@ -112,7 +113,7 @@ export function useRate(user: string) {
 export function useProfile(user: string) {
   return useQuery({
     queryKey: [user, 'profile'],
-    queryFn: () => unwrap(api.GET('/profiles/{user}/profile', { params: { path: { user } } })),
+    queryFn: () => unwrap(api.GET('/me/profile')),
   });
 }
 
@@ -121,13 +122,14 @@ export function useScan(user: string, quality: number) {
   return useQuery({
     queryKey: [user, 'scan', quality],
     queryFn: () =>
-      unwrap(api.GET('/profiles/{user}/shelf-scan', { params: { path: { user }, query: { quality } } })),
+      unwrap(api.GET('/me/shelf-scan', { params: { query: { quality } } })),
     refetchInterval: (query) => (query.state.data?.status === 'running' ? 2000 : false),
   });
 }
 
-export function scanImageUrl(user: string, scanned: string | null | undefined): string {
-  return `${API_URL}/profiles/${user}/shelf-scan/image?v=${encodeURIComponent(scanned ?? '')}`;
+/** The scan photo's address: the API hands out a signed link (an <Image> can't send the session). */
+export function scanImageUrl(imageUrl: string | null | undefined): string | null {
+  return imageUrl ? `${API_URL}${imageUrl}` : null;
 }
 
 /** Upload a photo and start a scan. Multipart bodies differ: a File on web, {uri, name, type} on native. */
@@ -142,7 +144,7 @@ export function useStartScan(user: string) {
       } else {
         form.append('photo', { uri: photo.uri, name, type: photo.mimeType ?? 'image/jpeg' } as unknown as Blob);
       }
-      const response = await fetch(`${API_URL}/profiles/${user}/shelf-scans`, { method: 'POST', body: form });
+      const response = await authFetch('/me/shelf-scans', { method: 'POST', body: form });
       if (!response.ok) throw new Error(errorMessage(await response.json().catch(() => undefined), response));
       return (await response.json()) as ShelfScan;
     },

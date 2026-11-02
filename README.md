@@ -14,52 +14,92 @@ Two parts, deployed independently:
 ```bash
 python -m venv .venv
 .venv/Scripts/python -m pip install -e "backend[dev]"
-cp .env.example .env                                       # then fill in the source URLs (and Ollama settings, if not the defaults)
+cp .env.example .env                                       # then fill in the source URLs, TASTE_DATABASE_URL, ...
 cd backend
 ../.venv/Scripts/python scripts/prepare_data.py film       # one-off, writes data/film/
 ../.venv/Scripts/python scripts/prepare_data.py book       # one-off, writes data/book/ and data/traits.json
 ../.venv/Scripts/python -m pip install -e ".[data]"        # optional, then: Open Library metadata (see below)
 ../.venv/Scripts/python scripts/openlibrary.py
-../.venv/Scripts/python scripts/seed_profiles.py           # optional: normie and romantic test profiles
+../.venv/Scripts/alembic upgrade head                      # create/upgrade the database tables (see Accounts)
 ../.venv/Scripts/uvicorn taste.api.app:app --reload        # the API; docs at http://localhost:8000/docs
 ../.venv/Scripts/python -m pytest                          # tests
 cd ../frontend && npm install && npm run web               # the app in a browser, against the local API
 ```
 
-After the one-off setup, `python dev.py` from the repo root starts both the API (port 8000, auto-reloading) and the web app (port 8081). Ctrl+C stops both.
+After the one-off setup, `python dev.py` from the repo root starts both the API (port 8000, auto-reloading) and the web app (port 8081), and, with `TASTE_PG_BIN` set, the local Postgres (applying migrations first). Ctrl+C stops everything.
 
-Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `TASTE_DOMAINS` (default `["book"]`), `TASTE_BOOK_GENOME` (default `truegenome`), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list).
+Settings come from the environment or the repo's `.env` (see `backend/taste/settings.py`): `TASTE_DATA_DIR` (default `data/` at the repo root), `TASTE_DOMAINS` (default `["book"]`), `TASTE_BOOK_GENOME` (default `truegenome`), `OLLAMA_URL`, `OLLAMA_MODEL`, `OLLAMA_VISION_MODEL`, `CORS_ORIGINS` (a JSON list of the web app's origins; default `["http://localhost:8081"]`), and the account settings below.
 
-**Books only, for now.** The app and API serve books from the `truegenome` BookGenome release (`data/genomes/book/truegenome/`), for one profile (`main`). The film catalogue, taste carried over between films and books, other profiles and the genome switch are all still in the backend (and tested); `TASTE_DOMAINS=["film","book"]` brings films back to the API.
+**Books only, for now.** The app and API serve books from the `truegenome` BookGenome release (`data/genomes/book/truegenome/`). The film catalogue, taste carried over between films and books, other profiles and the genome switch are all still in the backend (and tested); `TASTE_DOMAINS=["film","book"]` brings films back to the API.
 
-`data/` is generated locally and not committed. It holds the prepared catalogues, the shared-trait list, and the profiles in `data/users/<name>.json`, each with its ratings and latest Describe Me.
+`data/` is generated locally and not committed. It holds the prepared catalogues and the shared-trait list (and, locally, the Postgres data in `data/pg`). Profiles live in the database.
+
+## Accounts
+
+People sign in with **Apple** (iOS) or **Google**, or tap **Continue without an account**. That makes a guest: a real but anonymous profile, kept by this device's session. A guest who signs in later keeps their ratings. If the Apple or Google account already has a profile, the guest's ratings merge into it, with the account's own ratings winning.
+
+- **Sessions:** a random 256-bit token. The database stores only its sha256.
+  - **Phones** keep the token in the iOS Keychain or Android Keystore (`expo-secure-store`) and send it as `Authorization: Bearer`.
+  - **The web app** gets it as an HttpOnly, Secure, SameSite=Lax cookie that page scripts can't read. So in production the API and the web app must share a site (e.g. `taste.app` and `api.taste.app`), with that origin in `CORS_ORIGINS`.
+  - Sessions expire after 90 days unused. Signing in ends the session the request came with. Sign Out ends one session; `POST /auth/logout?everywhere=true` ends all of them.
+  - **Delete Account** removes the user and everything they own, as the App Store requires.
+  - `/auth/*` is rate-limited per IP. `scripts/clean_up.py`, run daily, deletes guests unseen for 180 days.
+- **Shelf photos** are served from signed links that expire after an hour, because an `<Image>` can't send the session.
+- **The database** is Postgres. The schema is in `taste/storage/db.py`, and migrations live in `backend/migrations` (`alembic upgrade head`).
+  - **Locally:** a portable Postgres works, nothing installed system-wide. Download the PostgreSQL Windows binaries zip and unzip it (e.g. to `D:/Tools/pgsql`). Then run, once: `initdb -D data/pg -U taste --auth=trust`, start it, and `psql -U taste -h localhost -d postgres -c "create database taste" -c "create database taste_test"`. Set `TASTE_PG_BIN` so `dev.py` starts it.
+  - **With Docker:** `docker compose up` runs Postgres and the API.
+- **Tests** use a throwaway SQLite file. Set `TASTE_TEST_DATABASE_URL` (e.g. `postgresql+psycopg://taste@localhost/taste_test`) to run them all against Postgres instead.
+
+| Setting | |
+|---|---|
+| `TASTE_DATABASE_URL` | e.g. `postgresql+psycopg://taste@localhost:5432/taste` (required) |
+| `TASTE_SECRET` | signs photo links; set a long random value in production (unset: random per start) |
+| `TASTE_APPLE_CLIENT_IDS` | JSON list: the iOS bundle id (`TASTE_APP_ID` in the app's build) |
+| `TASTE_GOOGLE_CLIENT_IDS` | JSON list: the Google web, iOS and Android client ids |
+| `TASTE_DEV_LOGIN` | `true` locally: sign in as any email (no proof). Never in production |
+| `TASTE_COOKIE_SECURE` | default `true` (browsers accept Secure cookies on `http://localhost`) |
+| `TASTE_PG_BIN` | for `dev.py`: the folder with `pg_ctl` |
+
+### Sign-in setup
+
+- **Apple:** in the Apple Developer portal, create an App ID with the bundle id you'll ship (`TASTE_APP_ID`) and enable Sign in with Apple. Put the same id in `TASTE_APPLE_CLIENT_IDS`. Apple sign-in runs on iOS only for now. Web and Android need a Services ID and an https domain: a follow-up.
+- **Google:** in Google Cloud, configure the OAuth consent screen and create three OAuth client ids: Web (with the web app's origin), iOS (with the bundle id) and Android. The app needs these in `frontend/.env.local`:
+  - `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`
+  - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
+  - `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME`, the iOS client's reversed client id.
+
+  The API needs all three ids in `TASTE_GOOGLE_CLIENT_IDS`.
+- **Native builds:** Google's native sign-in and Apple's need a development build (`npx expo run:ios`, or EAS), not Expo Go.
+- **Until these exist,** guests and the dev email sign-in (`TASTE_DEV_LOGIN` plus the app's `EXPO_PUBLIC_DEV_LOGIN`) work end to end.
 
 ## Using the app
 
 Three tabs: **Discover**, **Shelf scan** and **Profile**.
 
 - **Discover:** unrated books ranked by how well they match you. The score chip opens a breakdown: which tags push the book up or down. Tap a title for the book's page: cover, first-publication year, description, subjects, why it scores what it does, and similar books. Search covers the whole catalogue, and **Filter by tags** puts books that have the chosen tags *and* rank high for you first. The thumbs-up, minus and thumbs-down buttons rate a book (like, meh, dislike); tapping the current one again clears it.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take Photo" opens the camera on phones, including phone browsers; desktop browsers show only "Choose Photo"). A local vision model finds each shelf row and reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase). The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in your profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take Photo" opens the camera on phones, including phone browsers; desktop browsers show only "Choose Photo"). Claude (Sonnet 5.5, `ANTHROPIC_API_KEY`) reads every spine in one request, at up to 2576 px on the long edge, noting each book's shelf and position (`taste/model/claude_vision.py`; `TASTE_SHELF_MODEL` and `TASTE_SHELF_EFFORT`, default `medium`, tune it). Without a key, a local Ollama vision model does it instead, finding each shelf row and reading it in pieces: `ollama pull qwen3-vl:8b-instruct`, or set `OLLAMA_VISION_MODEL`. The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in the database, with a small copy of the photo) and shown again until you scan another. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
 - **Profile.** Two tabs. **Taste**: your taste in books as an infographic: how you've rated (liked, meh, disliked), your 3 books (the best matches among books you liked or haven't read; a summary of your taste, not just recommendations), a one-line summary, and a butterfly chart of the ten tags you're most into against the ten you're least into, by how much each moves your scores (hover or tap a bar for its weight and the books you rated its way that have most of it). **Ratings**: the books you've rated.
 
 Scores in the app are pure taste match: it sends `quality=0`, so other readers' ratings don't count (the truegenome release won't carry them for every book). The API still takes `quality` (default 0.1).
 
 ## API
 
-`backend/taste/api/`, FastAPI. Everything is per user under `/profiles/{user}`:
+`backend/taste/api/`, FastAPI. Everything about the signed-in user is under `/me` (the session says who):
 
 | | |
 |---|---|
-| `GET /domains`, `GET /profiles`, `GET /profiles/{user}` | catalogues, users, per-domain confidence |
+| `POST /auth/guest`, `/auth/apple`, `/auth/google`, `/auth/dev`; `POST /auth/logout` | start a session (returns `{token, user}` and sets the cookie); end it |
+| `GET /me`, `DELETE /me` | who's signed in; delete the account and everything in it |
+| `GET /domains`, `GET /me/summary` | catalogues; per-domain confidence |
 | `GET /domains/{domain}/tags` | the active genome's tags, to filter by |
 | `GET …/{domain}/items?mode=for_you\|rate&q=&page=&quality=&tags=` | a page of item cards; with `tags` (repeatable), sorted by `tag_match` × the item's percentile in the mode's own order (has the tags *and* is high on your list) |
 | `GET …/{domain}/items/{key}` | an item's page: card, distinctive tags, score breakdown, most similar items, and for books what Open Library knows (`book`) |
 | `GET …/{domain}/items/{key}/explanation`, `GET …/{domain}/rated` | why an item scores what it does; your rated items |
 | `PUT` / `DELETE …/ratings/{key}` | rate (`{"value": 1\|0\|-1}`) or clear |
 | `GET …/profile` | shared traits and each domain's own taste, with evidence |
-| `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results |
+| `POST …/shelf-scans` + `GET …/shelf-scan` | start a scan (multipart `photo`), then poll for progress and ranked results, with a signed `image_url` for the photo |
 
-`backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`.
+`backend/scripts/export_openapi.py` writes the spec for the frontend's generated types. `backend/Dockerfile` builds the API image, with `data/` mounted at `/data`; it runs migrations on start.
 
 ## Layout
 
@@ -76,17 +116,18 @@ taste/model/      calculations: no UI, no storage
   describe.py     Describe Me (not in the API for now): profile -> text brief -> a taste horoscope from a local LLM
   shelf.py        Shelf scan: photo -> spine titles (vision model) -> catalogue matches -> ranked
   llm.py          the local Ollama client both of those use
-taste/storage/    per-user ratings, Describe Me, last shelf scan: ProfileStore + JsonProfileStore
-taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), routes, schemas
+taste/storage/    the database: db.py (schema), sql_store.py (accounts, sessions, ratings, shelf scans)
+taste/api/        FastAPI: engine (catalogues, cached models, scan jobs), auth (sign-in, sessions), routes, schemas
 taste/settings.py settings from the environment / .env
 scripts/
   prepare_data.py     prepare_data.py <domain>
   openlibrary.py      refresh the books' Open Library metadata from the newest monthly dump
-  seed_profiles.py    test profiles (normie, romantic) built from lists of titles
+  clean_up.py         daily: delete long-idle guests and expired sessions
   export_openapi.py   the API spec, for the frontend
   scan_photo.py       run Shelf scan on photos from the command line
   sources/            one adapter per source dataset, all writing the common format
-tests/            pytest: model, storage and API (no network)
+tests/            pytest: model, storage, accounts and API (no network)
+migrations/       Alembic database migrations
 Dockerfile        the API image
 docs/             how-it-works.md
 ```
@@ -142,4 +183,5 @@ Open Library publishes full dumps monthly, about two days after month end (archi
 - **Quality leaks into taste.** Tags like "oscar (best actor)" and "inspirational" track acclaim as much as taste.
 - **Source tag noise.** Some single tags are unreliable, e.g. "race" on a racing anime, or "cia" on *The Shining*.
 - **Book years** are often the year of a later edition, not first publication.
-- **Profiles are local JSON files** with no auth, and shelf-scan jobs live in memory (lost on restart). A database and auth come next.
+- **Shelf-scan jobs and the sign-in rate limit live in the API process's memory.** A restart loses a running scan, and running several API instances needs a shared queue (e.g. SQS) and limiter first.
+- **Apple sign-in is iOS-only,** and deleting an account doesn't yet revoke its Apple token (that needs an Apple signing key).

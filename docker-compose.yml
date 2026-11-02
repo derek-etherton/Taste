@@ -1,0 +1,27 @@
+# Postgres and the API, as they'd run in production (local development can use them too):
+#   docker compose up
+# The API reads the rest of its settings from .env (TASTE_SECRET, sign-in client ids, ...).
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: taste
+      POSTGRES_PASSWORD: taste
+      POSTGRES_DB: taste
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "taste"]
+      interval: 2s
+      retries: 30
+  api:
+    build: backend
+    env_file: .env
+    environment:
+      TASTE_DATABASE_URL: postgresql+psycopg://taste:taste@db:5432/taste
+    ports: ["8000:8000"]
+    volumes: ["./data:/data"]
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:

@@ -1,19 +1,19 @@
-"""HTTP routes. Thin: validate, call the engine or model, shape the response."""
+"""HTTP routes. Thin: validate, call the engine or model, shape the response. Everything about
+the signed-in user is under /me (auth.py says who that is)."""
 
 from typing import Annotated, Literal
 
 import numpy as np
-from fastapi import APIRouter, Depends, File, HTTPException, Path, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 
 from taste.api import schemas
+from taste.api.auth import Me, check_image, image_url
 from taste.api.engine import Engine
 from taste.model import openlibrary
 from taste.model.user_model import TagClaim, claims
 
 router = APIRouter()
 
-# User names become file names in the JSON store: keep them simple.
-User = Annotated[str, Path(pattern=r"^[a-z0-9][a-z0-9_-]{0,39}$")]
 Quality = Annotated[float, Query(ge=0, le=1, description="Weight on general quality; 0 = pure taste match")]
 
 
@@ -46,13 +46,8 @@ def domains(e: E) -> list[schemas.Domain]:
     return [schemas.Domain(id=d, name=c.name, items=len(c), genome=c.genome) for d, c in e.cats.items()]
 
 
-@router.get("/profiles")
-def profiles(e: E) -> list[str]:
-    return e.store.users()
-
-
-@router.get("/profiles/{user}")
-def summary(user: User, e: E) -> list[schemas.DomainSummary]:
+@router.get("/me/summary")
+def summary(user: Me, e: E) -> list[schemas.DomainSummary]:
     models = e.models(e.store.ratings(user))
     return [schemas.DomainSummary(domain=d, name=m.cat.name, rated=len(m.rows), confidence=m.confidence())
             for d, m in models.items()]
@@ -60,8 +55,8 @@ def summary(user: User, e: E) -> list[schemas.DomainSummary]:
 
 # --- browsing ---------------------------------------------------------------------------------
 
-@router.get("/profiles/{user}/{domain}/items")
-def items(user: User, domain: str, e: E, mode: Literal["for_you", "rate"] = "for_you",
+@router.get("/me/{domain}/items")
+def items(user: Me, domain: str, e: E, mode: Literal["for_you", "rate"] = "for_you",
           q: str = "", page: Annotated[int, Query(ge=1)] = 1,
           page_size: Annotated[int, Query(ge=1, le=100)] = 25, quality: Quality = 0.1,
           tags: Annotated[list[str], Query(max_length=10)] = []) -> schemas.ItemPage:
@@ -95,8 +90,8 @@ def tags(domain: str, e: E) -> list[str]:
     return sorted(catalog_or_404(e, domain).tags, key=str.lower)
 
 
-@router.get("/profiles/{user}/{domain}/items/{key}")
-def item(user: User, domain: str, key: str, e: E, quality: Quality = 0.1,
+@router.get("/me/{domain}/items/{key}")
+def item(user: Me, domain: str, key: str, e: E, quality: Quality = 0.1,
          related: Annotated[int, Query(ge=0, le=50)] = 10) -> schemas.ItemDetail:
     """An item's page: card, distinctive tags, the score breakdown, and the most similar items."""
     cat = catalog_or_404(e, domain)
@@ -114,8 +109,8 @@ def item(user: User, domain: str, key: str, e: E, quality: Quality = 0.1,
     )
 
 
-@router.get("/profiles/{user}/{domain}/items/{key}/explanation")
-def explanation(user: User, domain: str, key: str, e: E, quality: Quality = 0.1) -> schemas.Explanation:
+@router.get("/me/{domain}/items/{key}/explanation")
+def explanation(user: Me, domain: str, key: str, e: E, quality: Quality = 0.1) -> schemas.Explanation:
     """Why an item scores what it does: the score popover."""
     cat = catalog_or_404(e, domain)
     model = e.models(e.store.ratings(user))[domain]
@@ -127,8 +122,8 @@ def explanation(user: User, domain: str, key: str, e: E, quality: Quality = 0.1)
                                pulling_up=tags(ex.for_tags), pushing_down=tags(ex.against_tags))
 
 
-@router.get("/profiles/{user}/{domain}/rated")
-def rated(user: User, domain: str, e: E, quality: Quality = 0.1) -> list[schemas.ItemCard]:
+@router.get("/me/{domain}/rated")
+def rated(user: Me, domain: str, e: E, quality: Quality = 0.1) -> list[schemas.ItemCard]:
     """The user's rated items: likes, then mehs, then dislikes."""
     catalog_or_404(e, domain)
     model = e.models(e.store.ratings(user))[domain]
@@ -142,14 +137,14 @@ def check_key(e: Engine, key: str) -> None:
     row_or_404(catalog_or_404(e, domain), key)
 
 
-@router.put("/profiles/{user}/ratings/{key}")
-def rate(user: User, key: str, body: schemas.RatingIn, e: E) -> schemas.Ratings:
+@router.put("/me/ratings/{key}")
+def rate(user: Me, key: str, body: schemas.RatingIn, e: E) -> schemas.Ratings:
     check_key(e, key)
     return schemas.Ratings(ratings=e.store.set_rating(user, key, body.value))
 
 
-@router.delete("/profiles/{user}/ratings/{key}")
-def unrate(user: User, key: str, e: E) -> schemas.Ratings:
+@router.delete("/me/ratings/{key}")
+def unrate(user: Me, key: str, e: E) -> schemas.Ratings:
     check_key(e, key)
     return schemas.Ratings(ratings=e.store.clear_rating(user, key))
 
@@ -164,8 +159,8 @@ def to_claims(pos: list[TagClaim], neg: list[TagClaim]) -> schemas.Claims:
     return schemas.Claims(respond_to=[one(c) for c in pos], push_back_on=[one(c) for c in neg])
 
 
-@router.get("/profiles/{user}/profile")
-def profile(user: User, e: E) -> schemas.Profile:
+@router.get("/me/profile")
+def profile(user: Me, e: E) -> schemas.Profile:
     """What the model has inferred: traits shared across domains, then each domain's own taste."""
     ratings = e.store.ratings(user)
     models = e.models(ratings)
@@ -179,9 +174,9 @@ def profile(user: User, e: E) -> schemas.Profile:
 
 # --- shelf scan -------------------------------------------------------------------------------
 
-@router.post("/profiles/{user}/shelf-scans", status_code=202)
-async def start_scan(user: User, e: E, photo: UploadFile = File(...)) -> schemas.ShelfScan:
-    """Start reading a shelf photo. Poll GET .../shelf-scan for progress and results."""
+@router.post("/me/shelf-scans", status_code=202)
+async def start_scan(user: Me, e: E, photo: UploadFile = File(...)) -> schemas.ShelfScan:
+    """Start reading a shelf photo. Poll GET /me/shelf-scan for progress and results."""
     if "book" not in e.cats:
         raise HTTPException(404, "Shelf scan needs the book catalogue.")
     image = await photo.read()
@@ -191,15 +186,21 @@ async def start_scan(user: User, e: E, photo: UploadFile = File(...)) -> schemas
     return schemas.ShelfScan(status="running", progress=schemas.ScanProgress(done=0, total=0))
 
 
-@router.get("/profiles/{user}/shelf-scan")
-def get_scan(user: User, e: E, quality: Quality = 0.1) -> schemas.ShelfScan:
-    """The latest scan: running with progress, failed with an error, or done with ranked books."""
-    return e.scan(user, quality)
+@router.get("/me/shelf-scan")
+def get_scan(user: Me, e: E, quality: Quality = 0.1) -> schemas.ShelfScan:
+    """The latest scan: running with progress, failed with an error, or done with ranked books,
+    with a link to its photo (valid for an hour)."""
+    out = e.scan(user, quality)
+    saved = e.store.scan(user)
+    return out.model_copy(update={"image_url": image_url(user, saved.id)}) if saved else out
 
 
-@router.get("/profiles/{user}/shelf-scan/image", responses={200: {"content": {"image/jpeg": {}}}})
-def scan_image(user: User, e: E) -> Response:
-    image = e.store.scan_image(user)
+@router.get("/shelf-images/{user}/{scan_id}", responses={200: {"content": {"image/jpeg": {}}}})
+def scan_image(user: str, scan_id: str, expires: int, sig: str, e: E) -> Response:
+    """A scan's photo, by a signed link from GET /me/shelf-scan (an <img> can't send a session)."""
+    check_image(user, scan_id, expires, sig)
+    saved = e.store.scan(user)
+    image = e.store.scan_image(user) if saved and saved.id == scan_id else None
     if image is None:
-        raise HTTPException(404, "No scan yet.")
-    return Response(image, media_type="image/jpeg")
+        raise HTTPException(404, "No such photo.")
+    return Response(image, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})

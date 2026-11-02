@@ -14,6 +14,11 @@ import { Radius, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useSettings } from '@/state/settings';
 
+/** A camera to take a photo with: phones, and phone or tablet browsers (a finger as the main
+ * pointer). Desktop browsers would only open a file picker, the same as Choose Photo. */
+const HAS_CAMERA =
+  Platform.OS !== 'web' || (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches);
+
 export default function ShelfScan() {
   const { user, quality } = useSettings();
   const theme = useTheme();
@@ -32,7 +37,11 @@ export default function ShelfScan() {
         return;
       }
     }
-    const options: ImagePicker.ImagePickerOptions = { mediaTypes: 'images', quality: 0.9 };
+    const options: ImagePicker.ImagePickerOptions = {
+      mediaTypes: 'images',
+      quality: 0.9,
+      cameraType: ImagePicker.CameraType.back, // the shelf is in front of you
+    };
     const result = camera ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
     if (result.canceled || !result.assets?.length) return;
     setPreview(result.assets[0].uri);
@@ -57,7 +66,7 @@ export default function ShelfScan() {
         </ThemedText>
       </View>
       <View style={styles.actions}>
-        {Platform.OS !== 'web' && (
+        {HAS_CAMERA && (
           <Button
             variant="filled"
             icon={{ ios: 'camera', md: 'photo_camera' }}
@@ -67,7 +76,7 @@ export default function ShelfScan() {
           />
         )}
         <Button
-          variant={Platform.OS === 'web' ? 'filled' : 'gray'}
+          variant={HAS_CAMERA ? 'gray' : 'filled'}
           icon={{ ios: 'photo.on.rectangle', md: 'photo_library' }}
           label="Choose Photo"
           onPress={() => pick(false)}

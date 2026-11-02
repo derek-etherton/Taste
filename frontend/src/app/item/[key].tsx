@@ -47,7 +47,7 @@ export default function ItemPage() {
 
             <Section
               title="For You"
-              footer={`Beats ${Math.floor(card.percentile)}% of the books you haven't rated. ${signed(ex.quality_part, 3)} of it comes from other readers' ratings${ex.transferred_part ? `, ${signed(ex.transferred_part, 3)} carried over from your other ratings` : ''}.`}>
+              footer={`Beats ${Math.floor(card.percentile)}% of the books you haven't rated.${ex.transferred_part ? ` ${signed(ex.transferred_part, 3)} of it carried over from your other ratings.` : ''}`}>
               <View style={styles.score}>
                 <ThemedText type="title1" style={styles.number}>
                   {signed(card.score)}
@@ -72,7 +72,7 @@ export default function ItemPage() {
               footer={(() => {
                 const shown = [...ex.pulling_up, ...ex.pushing_down].reduce((s, t) => s + t.contribution, 0);
                 const rest = ex.score - ex.quality_part - shown;
-                return `${signed(ex.score)} = ${signed(shown)} from these tags, ${signed(rest)} from all the others, ${signed(ex.quality_part)} from other readers' ratings.`;
+                return `${signed(ex.score)} = ${signed(shown)} from these tags, ${signed(rest)} from all the others.`;
               })()}>
               <ScoreBreakdown up={ex.pulling_up} down={ex.pushing_down} />
             </Section>

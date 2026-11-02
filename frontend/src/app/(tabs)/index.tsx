@@ -1,22 +1,17 @@
-/** Discover: book recommendations ("For You"), the most useful books to rate ("Rate"), and your
- * ratings, as one inset-grouped list under a large title. */
-import { SegmentedControl } from '@expo/ui/community/segmented-control';
+/** Discover: book recommendations, as one inset-grouped list under a large title, with search and
+ * the tag filter. (Your ratings are on Profile; the API's "rate" mode isn't shown for now.) */
 import { useEffect, useMemo, useState } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import type { ItemCard } from '@/api/client';
-import { type Mode, useItems, useRated, useSummary } from '@/api/hooks';
+import { useItems, useSummary } from '@/api/hooks';
 import { ExplanationSheet } from '@/components/explanation-sheet';
 import { ItemRow } from '@/components/item-row';
 import { LargeTitle, Loading, Note, Screen, SearchField, listPadding } from '@/components/kit';
 import { TagFilter } from '@/components/tag-filter';
 import { ThemedText } from '@/components/themed-text';
 import { Spacing } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useSettings } from '@/state/settings';
-
-type View_ = Mode | 'rated';
-const VIEWS: View_[] = ['for_you', 'rate', 'rated'];
 
 function useDebounced<T>(value: T, ms = 250): T {
   const [debounced, setDebounced] = useState(value);
@@ -29,26 +24,20 @@ function useDebounced<T>(value: T, ms = 250): T {
 
 export default function Discover() {
   const { user, domain, quality } = useSettings();
-  const scheme = useColorScheme();
   const summary = useSummary(user);
-  const [view, setView] = useState<View_>('for_you');
   const [text, setText] = useState('');
   const q = useDebounced(text.trim());
   const [explaining, setExplaining] = useState<ItemCard | null>(null);
   const [tags, setTags] = useState<string[]>([]);
 
-  const items = useItems(user, domain, view === 'rated' ? 'for_you' : view, q, quality, tags);
-  const rated = useRated(user, domain, quality);
+  const items = useItems(user, domain, 'for_you', q, quality, tags);
   const thisDomain = summary.data?.find((d) => d.domain === domain);
 
   const pages = items.data?.pages;
   const source = pages?.[0]?.source ?? '';
-  const data: ItemCard[] = useMemo(
-    () => (view === 'rated' ? (rated.data ?? []) : (pages?.flatMap((p) => p.items) ?? [])),
-    [view, rated.data, pages],
-  );
-  const loading = view === 'rated' ? rated.isPending : items.isPending;
-  const error = view === 'rated' ? rated.error : items.error;
+  const data: ItemCard[] = useMemo(() => pages?.flatMap((p) => p.items) ?? [], [pages]);
+  const loading = items.isPending;
+  const error = items.error;
 
   const header = (
     <View style={styles.header}>
@@ -60,27 +49,11 @@ export default function Discover() {
           </ThemedText>
         )}
       </View>
-      <SegmentedControl
-        values={['For You', 'Rate', `Ratings${rated.data ? ` (${rated.data.length})` : ''}`]}
-        selectedIndex={VIEWS.indexOf(view)}
-        onChange={(e) => setView(VIEWS[e.nativeEvent.selectedSegmentIndex])}
-        appearance={scheme === 'dark' ? 'dark' : 'light'} // the app's choice, which may differ from the system's
-      />
-      {view !== 'rated' && (
-        <>
-          <SearchField value={text} onChangeText={setText} placeholder="Title or author" />
-          <TagFilter domain={domain} value={tags} onChange={setTags} />
-        </>
-      )}
-      {view === 'for_you' && !q && thisDomain?.rated === 0 && !source && (
+      <SearchField value={text} onChangeText={setText} placeholder="Title or author" />
+      <TagFilter domain={domain} value={tags} onChange={setTags} />
+      {!q && thisDomain?.rated === 0 && !source && (
         <ThemedText type="footnote" themeColor="secondaryLabel">
-          Rate a few books. Until then this is just the best-rated overall.
-        </ThemedText>
-      )}
-      {view === 'rate' && !q && (
-        <ThemedText type="footnote" themeColor="secondaryLabel">
-          Well-known books your profile knows least about, spread across different kinds. Rating these teaches it the
-          most.
+          Rate a few books to get recommendations.
         </ThemedText>
       )}
       {error && <Note tone="error">{error.message}</Note>}
@@ -98,7 +71,7 @@ export default function Discover() {
         ListHeaderComponent={header}
         ListEmptyComponent={loading ? <Loading /> : <Note>{q ? 'No matches.' : 'Nothing here yet.'}</Note>}
         ListFooterComponent={items.isFetchingNextPage ? <Loading /> : undefined}
-        onEndReached={() => view !== 'rated' && items.hasNextPage && !items.isFetchingNextPage && items.fetchNextPage()}
+        onEndReached={() => items.hasNextPage && !items.isFetchingNextPage && items.fetchNextPage()}
         onEndReachedThreshold={0.5}
         contentContainerStyle={listPadding}
         keyboardShouldPersistTaps="handled"

@@ -27,6 +27,7 @@ const SYSTEM = {
     separator: 'rgba(60, 60, 67, 0.29)',
     fill: 'rgba(118, 118, 128, 0.12)', // tertiarySystemFill: search fields, idle buttons
     destructive: '#FF3B30', // systemRed
+    neutral: '#8E8E93', // systemGray: the neutral midpoint of diverging charts (meh)
   },
   dark: {
     background: '#1C1C1E',
@@ -38,6 +39,7 @@ const SYSTEM = {
     separator: 'rgba(84, 84, 88, 0.65)',
     fill: 'rgba(118, 118, 128, 0.24)',
     destructive: '#FF453A',
+    neutral: '#8E8E93',
   },
 } as const;
 

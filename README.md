@@ -38,16 +38,11 @@ Settings come from the environment or the repo's `.env` (see `backend/taste/sett
 
 Three tabs: **Discover**, **Shelf scan** and **Profile**.
 
-- **Discover:**
-  - **For you:** unrated books ranked by how well they match you. The score chip opens a breakdown: which tags push the book up or down, and how much comes from general quality. Tap a title for the book's page: cover, first-publication year, description, subjects, why it scores what it does, and similar books.
-  - **Rate books:** every unrated book. The 600 best-known come first, ordered by how unsure your profile is about them, i.e. the ratings that would teach it most. The rest follow, best-known first.
-  - **Your ratings.**
+- **Discover:** unrated books ranked by how well they match you. The score chip opens a breakdown: which tags push the book up or down. Tap a title for the book's page: cover, first-publication year, description, subjects, why it scores what it does, and similar books. Search covers the whole catalogue, and **Filter by tags** puts books that have the chosen tags *and* rank high for you first. The thumbs-up, minus and thumbs-down buttons rate a book (like, meh, dislike); tapping the current one again clears it.
+- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take Photo" opens the camera on phones, including phone browsers; desktop browsers show only "Choose Photo"). A local vision model finds each shelf row and reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase). The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in your profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
+- **Profile.** Two tabs. **Taste**: your taste in books as an infographic: how you've rated (liked, meh, disliked), your 3 books (the best matches among books you liked or haven't read; a summary of your taste, not just recommendations), a one-line summary, and a butterfly chart of the ten tags you're most into against the ten you're least into, by how much each moves your scores (hover or tap a bar for its weight and the books you rated its way that have most of it). **Ratings**: the books you've rated.
 
-  Search covers the whole catalogue, and **Filter by tags** puts books that have the chosen tags *and* rank high for you first. 👍 😐 👎 rate a book; tapping the same one again clears it.
-- **Shelf scan.** Photograph a bookshelf, at home or in a shop ("Take photo" on phones; "Choose photo" everywhere). A local vision model finds each shelf row and reads it in pieces (a whole bookcase at once is too much small text for it; about a minute for a full bookcase). The titles are matched to the catalogue, and the ones we know come back sorted for you. Spines it read but couldn't find are listed too, and each match says roughly where it is on the shelf. Your last scan is saved (in your profile file, with a small copy of the photo) and shown again until you scan another. Needs `ollama pull qwen3-vl:8b-instruct` (the instruct variant: the default tag "thinks" for minutes), or set `OLLAMA_VISION_MODEL`. The catalogue covers about 9,400 popular books, so newer or niche titles won't be found.
-- **Profile.**
-  - **Algorithm:** **Book rating contribution** is how much a book's ratings from other readers count towards its score (the API's `quality`, 0 to 1).
-  - **Taste:** what the model has learnt about your taste in books, with the rated books behind every claim.
+Scores in the app are pure taste match: it sends `quality=0`, so other readers' ratings don't count (the truegenome release won't carry them for every book). The API still takes `quality` (default 0.1).
 
 ## API
 

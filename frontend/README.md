@@ -37,9 +37,9 @@ src/app/            screens (Expo Router): (tabs)/index (Discover), (tabs)/shelf
                     item/[key] (a book's page, pushed under a native navigation bar)
 src/api/            client.ts (typed fetch client), hooks.ts (TanStack Query), schema.d.ts (generated)
 src/components/     kit (Screen, LargeTitle, Section, Button, SearchField, Icon, appearance toggle), item-row,
-                    sheet, explanation-sheet, tag-filter, tag-charts, book-info, quality-slider, app-tabs
+                    sheet, explanation-sheet, tag-filter, tag-charts, taste-chart, top-books, book-info, app-tabs
 src/constants/      palette.ts (brand colours), theme.ts (colours, type, spacing), color.ts (contrast maths)
-src/state/          settings.tsx (quality weight), appearance.ts (the light/dark choice, saved on the device)
+src/state/          settings.tsx (fixed for now: profile `main`, books, quality 0), appearance.ts (light/dark, saved)
 ```
 
 ## Look and feel
@@ -47,7 +47,7 @@ src/state/          settings.tsx (quality weight), appearance.ts (the light/dark
 The UI follows Apple's Human Interface Guidelines, using platform components where they exist:
 
 - **Tabs:** `NativeTabs` (the system tab bar on iOS and Android, Expo Router's floating bar on web).
-- **Controls:** `@expo/ui`'s segmented control and slider (SwiftUI on iOS, Compose on Android, web fallbacks).
+- **Controls:** `@expo/ui`'s segmented control (SwiftUI on iOS, Compose on Android, a web fallback).
 - **Icons:** SF Symbols via `expo-symbols` (Material Symbols on Android and web).
 - **Layout and type:** inset-grouped lists, capsule buttons and Apple's text styles, from `kit.tsx` and `theme.ts`.
 

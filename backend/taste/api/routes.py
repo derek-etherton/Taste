@@ -173,7 +173,7 @@ def profile(user: User, e: E) -> schemas.Profile:
         user=user,
         shared=to_claims(*e.traits.profile(ratings)) if e.traits else None,
         domains=[schemas.DomainProfile(domain=d, name=m.cat.name, rated=len(m.rows), confidence=m.confidence(),
-                                       claims=to_claims(*m.profile())) for d, m in models.items()],
+                                       claims=to_claims(*m.profile(k=10, evidence=5))) for d, m in models.items()],
     )
 
 

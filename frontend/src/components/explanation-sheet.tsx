@@ -1,5 +1,5 @@
-/** Why a book scores what it does: its score, the part from general quality (and from other
- * domains, when there are any), and the tags pulling it up and pushing it down. */
+/** Why a book scores what it does: its score (and the part carried over from other domains, when
+ * there are any), and the tags pulling it up and pushing it down. */
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import type { ItemCard } from '@/api/client';
@@ -53,7 +53,6 @@ export function ExplanationSheet({
               title="Score"
               footer="The rating the model expects from you: +1 like, 0 meh, −1 dislike. Strong matches go past ±1.">
               <Value first label="Predicted rating" value={signed(d.score)} />
-              <Value label="From general quality" value={signed(d.quality_part, 3)} />
               {source ? <Value label={`From your ${source}`} value={signed(d.transferred_part, 3)} /> : null}
             </Section>
             <Section title="Why">
